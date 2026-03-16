@@ -35,7 +35,7 @@ export default function ServerClock() {
     <div
       style={{
       position: 'fixed',
-      bottom: '0.75rem',
+      top: '0.75rem',
       left: '1.25rem',
       zIndex: 40,
       display: 'flex',

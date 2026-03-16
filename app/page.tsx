@@ -21,13 +21,19 @@ import PasswordModal from '@/components/PasswordModal';
 import ThemeSelector from '@/components/ThemeSelector';
 import ServerClock from '@/components/ServerClock';
 
-interface SiteSettings { site_title: string; site_subtitle: string; site_logo: string; }
+interface SiteSettings { site_title: string; site_subtitle: string; site_logo: string; site_banner: string; }
 interface ToastItem { id: number; msg: string; type: 'success'|'error'|'info'; }
+
+type PageItem =
+  | { kind: 'link';   id: string; position: number; data: LinkItem }
+  | { kind: 'folder'; id: string; position: number; data: FolderItem };
 
 export default function Home() {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
-  const [settings, setSettings] = useState<SiteSettings>({ site_title:'Portal Sekolah', site_subtitle:'Link & Informasi Sekolah', site_logo:'' });
+  const [items, setItems] = useState<PageItem[]>([]);
+  const [settings, setSettings] = useState<SiteSettings>({ site_title:'Portal Sekolah', site_subtitle:'Link & Informasi Sekolah', site_logo:'', site_banner:'' });
+  const [search, setSearch] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
@@ -40,8 +46,6 @@ export default function Home() {
   const [editingSeparator, setEditingSeparator] = useState<{id:number;label:string;visible:boolean}|null>(null);
   const [editingFolder, setEditingFolder] = useState<FolderData|null>(null);
   const [deletingItem, setDeletingItem] = useState<{id:number;label:string;kind:'link'|'folder'}|null>(null);
-  const [deletingLinkFolderCount, setDeletingLinkFolderCount] = useState(0);
-  const [memberships, setMemberships] = useState<Array<{folder_id:number;link_id:number}>>([]);
   const [passwordLink, setPasswordLink] = useState<LinkItem|null>(null);
   const [passwordFolder, setPasswordFolder] = useState<FolderItem|null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -57,6 +61,16 @@ export default function Home() {
     const id = tc+1; setTc(id); setToasts(p=>[...p,{id,msg,type}]);
   }
 
+  // Buat unified sorted list dari links + folders
+  function buildItems(ls: LinkItem[], fs: FolderItem[]): PageItem[] {
+    const combined: PageItem[] = [
+      ...fs.map(f => ({ kind: 'folder' as const, id: `folder-${f.id}`, position: f.position, data: f })),
+      ...ls.map(l => ({ kind: 'link'   as const, id: `link-${l.id}`,   position: l.position, data: l })),
+    ];
+    combined.sort((a, b) => a.position - b.position);
+    return combined;
+  }
+
   const fetchData = useCallback(async () => {
     try {
       const [lr, ar] = await Promise.all([
@@ -64,10 +78,13 @@ export default function Home() {
         fetch('/api/auth/check'),
       ]);
       const ld = await lr.json(); const ad = await ar.json();
-      setLinks(ld.links||[]); setSettings(ld.settings||{}); setIsAdmin(ad.isAdmin||false);
-      setFolders(ld.folders||[]); setMemberships(ld.memberships||[]);
-      // memberships stored for edit use
-
+      const ls: LinkItem[] = ld.links || [];
+      const fs: FolderItem[] = ld.folders || [];
+      setLinks(ls);
+      setFolders(fs);
+      setSettings(ld.settings || {});
+      setIsAdmin(ad.isAdmin || false);
+      setItems(buildItems(ls, fs));
     } catch { showToast('Gagal memuat data','error'); }
     finally { setLoading(false); }
   }, []); // eslint-disable-line
@@ -87,42 +104,43 @@ export default function Home() {
     setIsAdmin(false); showToast('Keluar dari mode admin','info');
   }
 
-  async function handleDragEndLinks(e:DragEndEvent) {
-    const {active,over}=e; if(!over||active.id===over.id) return;
-    const oi=links.findIndex(l=>l.id===active.id); const ni=links.findIndex(l=>l.id===over.id);
-    const nl=arrayMove(links,oi,ni); setLinks(nl);
-    try {
-      await fetch('/api/links',{method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({positions:nl.map((l,i)=>({id:l.id,position:i}))})});
-      showToast('Posisi disimpan','success');
-    } catch { showToast('Gagal','error'); fetchData(); }
-  }
+  async function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
 
-  async function handleDragEndFolders(e:DragEndEvent) {
-    const {active,over}=e; if(!over||active.id===over.id) return;
-    const activeId = String(active.id).replace('folder-','');
-    const overId = String(over.id).replace('folder-','');
-    const oi=folders.findIndex(f=>f.id===parseInt(activeId));
-    const ni=folders.findIndex(f=>f.id===parseInt(overId));
-    const nf=arrayMove(folders,oi,ni); setFolders(nf);
+    const oi = items.findIndex(i => i.id === active.id);
+    const ni = items.findIndex(i => i.id === over.id);
+    const newItems = arrayMove(items, oi, ni);
+    setItems(newItems);
+
+    // Assign posisi baru berdasarkan index di list gabungan
+    const linkPositions: {id:number;position:number}[] = [];
+    const folderPositions: {id:number;position:number}[] = [];
+    newItems.forEach((item, idx) => {
+      if (item.kind === 'link')   linkPositions.push({ id: item.data.id, position: idx });
+      else                         folderPositions.push({ id: item.data.id, position: idx });
+    });
+
     try {
-      await fetch('/api/folders',{method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({positions:nf.map((f,i)=>({id:f.id,position:i}))})});
-    } catch { fetchData(); }
+      await Promise.all([
+        linkPositions.length > 0 && fetch('/api/links', {
+          method: 'PUT', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ positions: linkPositions }),
+        }),
+        folderPositions.length > 0 && fetch('/api/folders', {
+          method: 'PUT', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ positions: folderPositions }),
+        }),
+      ]);
+      showToast('Posisi disimpan', 'success');
+    } catch { showToast('Gagal simpan posisi','error'); fetchData(); }
   }
 
   async function handleDeleteConfirm() {
     if (!deletingItem) return;
     try {
       if (deletingItem.kind === 'link') {
-        const res = await fetch('/api/links',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deletingItem.id,context:'root'})});
-        const data = await res.json();
-        if (data.action === 'hidden_from_root') {
-          showToast('Link disembunyikan dari halaman utama (masih ada di folder)','info');
-          setDeletingItem(null);
-          fetchData();
-          return;
-        }
+        await fetch('/api/links',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deletingItem.id})});
       } else {
         await fetch('/api/folders',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:deletingItem.id})});
       }
@@ -135,32 +153,51 @@ export default function Home() {
       setEditingSeparator({id:link.id,label:link.label,visible:!!link.visible});
     } else {
       setEditingLink({id:link.id,label:link.label,url:link.url,image_url:link.image_url,
-        effect:link.effect,bg_color:link.bg_color,visible:!!link.visible,show_root:link.show_root!==0,
+        effect:link.effect,bg_color:link.bg_color,visible:!!link.visible,
         scheduler_enabled:!!link.scheduler_enabled,scheduler_start:link.scheduler_start,
         scheduler_end:link.scheduler_end,has_password:!!link.has_password});
     }
   }
 
   function handleEditFolder(folder:FolderItem) {
-    const link_ids = memberships.filter(m => m.folder_id === folder.id).map(m => m.link_id);
-    setEditingFolder({id:folder.id,name:folder.name,description:folder.description,icon:folder.icon,visible:!!folder.visible,link_ids,has_password:folder.has_password});
+    setEditingFolder({id:folder.id,name:folder.name,description:folder.description,icon:folder.icon,visible:!!folder.visible,has_password:folder.has_password});
   }
 
-  const rootLinks = isAdmin ? links : links.filter(l => {
-    if (!l.visible) return false;
-    if (l.type==='separator') return true;
-    if (l.scheduler_enabled) {
-      const now=new Date();
-      if (l.scheduler_start&&now<new Date(l.scheduler_start)) return false;
-      if (l.scheduler_end&&now>new Date(l.scheduler_end)) return false;
-    }
+  // Scheduler check
+  function isLinkScheduleOk(l: LinkItem): boolean {
+    if (!l.scheduler_enabled) return true;
+    const now = new Date();
+    if (l.scheduler_start && now < new Date(l.scheduler_start)) return false;
+    if (l.scheduler_end   && now > new Date(l.scheduler_end))   return false;
     return true;
-  });
-  const displayFolders = isAdmin ? folders : folders.filter(f=>f.visible);
+  }
 
-  // Combined items for admin view (folders on top, then links)
-  const folderIds = folders.map(f=>`folder-${f.id}`);
-  const linkIds = links.map(l=>l.id);
+  // Search
+  const searchLower = search.toLowerCase().trim();
+  const isSearching = searchLower.length > 0;
+
+  const searchResults: PageItem[] = isSearching
+    ? items.filter(item => {
+        if (item.kind === 'folder') {
+          return item.data.name.toLowerCase().includes(searchLower);
+        }
+        if (item.data.type === 'separator') return false;
+        const label = item.data.label.replace(/<[^>]+>/g,'').toLowerCase();
+        return label.includes(searchLower) || (item.data.url||'').toLowerCase().includes(searchLower);
+      })
+    : [];
+
+  // Non-admin visible items (no search)
+  const visibleItems: PageItem[] = items.filter(item => {
+    if (item.kind === 'folder') return !!item.data.visible;
+    const l = item.data;
+    if (!l.visible) return false;
+    if (l.type === 'separator') return true;
+    return isLinkScheduleOk(l);
+  });
+
+  const displayItems = isSearching ? [] : (isAdmin ? items : visibleItems);
+  const itemIds = items.map(i => i.id);
 
   return (
     <div className="portal-bg" style={{minHeight:'100vh'}}>
@@ -174,13 +211,11 @@ export default function Home() {
             </>
           ) : (
             <button onClick={()=>setShowLogin(true)} style={{
-              background:'var(--card)',
-              backdropFilter:'blur(8px)',
-              border:'1px solid var(--border)',
-              borderRadius:8,color:'var(--text2)',
-              padding:'0.35rem 0.7rem',fontSize:'0.75rem',cursor:'pointer',
-              display:'flex',alignItems:'center',gap:'0.3rem',
-              fontFamily:'Plus Jakarta Sans,sans-serif',transition:'all 0.2s',
+              background:'var(--card)', backdropFilter:'blur(8px)',
+              border:'1px solid var(--border)', borderRadius:8, color:'var(--text2)',
+              padding:'0.35rem 0.7rem', fontSize:'0.75rem', cursor:'pointer',
+              display:'flex', alignItems:'center', gap:'0.3rem',
+              fontFamily:'Plus Jakarta Sans,sans-serif', transition:'all 0.2s',
             }}
             onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.borderColor='var(--accent)';(e.currentTarget as HTMLElement).style.color='var(--text)';}}
             onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.borderColor='var(--border)';(e.currentTarget as HTMLElement).style.color='var(--text2)';}}>
@@ -191,18 +226,26 @@ export default function Home() {
       </div>
 
       {/* Content */}
-      <div style={{maxWidth:620,margin:'0 auto',padding:'4.5rem 1.5rem 3rem'}}>
+      <div style={{maxWidth:480,margin:'0 auto',padding:'4rem 1rem 3rem'}}>
+        {/* Banner */}
+        {settings.site_banner && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={settings.site_banner} alt="Banner"
+            style={{width:'100%',borderRadius:16,objectFit:'cover',maxHeight:200,display:'block',marginBottom:'1.5rem',border:'1px solid var(--border)'}}
+          />
+        )}
+
         {/* Header */}
-        <div style={{textAlign:'center',marginBottom:'2.5rem'}}>
+        <div style={{textAlign:'center',marginBottom:'1.75rem'}}>
           {settings.site_logo
             // eslint-disable-next-line @next/next/no-img-element
-            ?<img src={settings.site_logo} alt="Logo" style={{width:80,height:80,borderRadius:16,objectFit:'contain',margin:'0 auto 1rem',display:'block',border:'1px solid var(--border)',background:'var(--card)',padding:8}}/>
-            :<div style={{width:72,height:72,borderRadius:16,background:'linear-gradient(135deg,var(--accent) 0%,var(--accent3) 100%)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 1rem',fontSize:'2rem',boxShadow:'0 8px 24px rgba(108,99,255,0.3)'}}>🏫</div>
+            ?<img src={settings.site_logo} alt="Logo" style={{width:72,height:72,borderRadius:'50%',objectFit:'cover',margin:'0 auto 0.875rem',display:'block',border:'2px solid var(--border)',background:'var(--card)'}}/>
+            :<div style={{width:72,height:72,borderRadius:'50%',background:'linear-gradient(135deg,var(--accent) 0%,var(--accent3) 100%)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 0.875rem',fontSize:'2rem',boxShadow:'0 4px 16px rgba(108,99,255,0.3)'}}>🏫</div>
           }
-          <h1 style={{fontFamily:'Fraunces,serif',fontSize:'clamp(1.5rem,5vw,2rem)',fontWeight:700,margin:'0 0 0.4rem',background:'linear-gradient(135deg,var(--text) 0%,var(--accent2) 100%)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>
+          <h1 style={{fontFamily:'Fraunces,serif',fontSize:'1.25rem',fontWeight:700,margin:'0 0 0.3rem',color:'var(--text)'}}>
             {settings.site_title||'Portal Sekolah'}
           </h1>
-          <p style={{margin:0,color:'var(--text2)',fontSize:'0.9rem'}}>{settings.site_subtitle||'Link & Informasi Sekolah'}</p>
+          <p style={{margin:0,color:'var(--text2)',fontSize:'0.825rem'}}>{settings.site_subtitle||'Link & Informasi Sekolah'}</p>
           {isAdmin&&(
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'0.6rem',marginTop:'0.75rem'}}>
               <div style={{display:'inline-flex',alignItems:'center',gap:'0.4rem',background:'rgba(108,99,255,0.15)',border:'1px solid rgba(108,99,255,0.3)',borderRadius:999,padding:'0.3rem 0.8rem',fontSize:'0.75rem',color:'var(--accent2)'}}>
@@ -212,7 +255,7 @@ export default function Home() {
               {/* Dropdown Tambah Item */}
               <div ref={dropdownRef} style={{position:'relative'}}>
                 <button className="btn btn-primary btn-sm" onClick={()=>setShowDropdown(v=>!v)} style={{display:'flex',alignItems:'center',gap:'0.4rem',padding:'0.45rem 1rem',fontSize:'0.82rem'}}>
-                  ➕ Tambah Item
+                  ✚ Tambah Item
                   <span style={{fontSize:'0.55rem',display:'inline-block',transition:'transform 0.2s',transform:showDropdown?'rotate(180deg)':'none'}}>▼</span>
                 </button>
                 {showDropdown && (
@@ -242,6 +285,19 @@ export default function Home() {
           )}
         </div>
 
+        {/* Search bar */}
+        <div style={{position:'relative',marginBottom:'1rem'}}>
+          <span style={{position:'absolute',left:'0.875rem',top:'50%',transform:'translateY(-50%)',color:'var(--text2)',fontSize:'0.9rem',pointerEvents:'none'}}>🔍</span>
+          <input className="field" type="text" placeholder="Cari link atau folder..."
+            value={search} onChange={e=>setSearch(e.target.value)}
+            style={{paddingLeft:'2.25rem',borderRadius:999,fontSize:'0.875rem'}}
+          />
+          {search&&(
+            <button onClick={()=>setSearch('')} style={{position:'absolute',right:'0.75rem',top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--text2)',cursor:'pointer',fontSize:'0.9rem',padding:0,lineHeight:1}}>✕</button>
+          )}
+        </div>
+
+        {/* List */}
         {loading ? (
           <div style={{textAlign:'center',padding:'3rem',color:'var(--text2)'}}>
             <div style={{fontSize:'1.5rem',marginBottom:'0.5rem',animation:'spin 1s linear infinite',display:'inline-block'}}>⟳</div>
@@ -249,65 +305,95 @@ export default function Home() {
           </div>
         ) : (
           <div style={{display:'flex',flexDirection:'column',gap:'0.75rem'}}>
-            {/* Folders section */}
-            {(displayFolders.length>0||(isAdmin&&folders.length>0)) && (
-              <div style={{display:'flex',flexDirection:'column',gap:'0.75rem'}}>
-                {isAdmin && folders.length > 0 && (
-                  <div style={{fontSize:'0.72rem',fontWeight:700,letterSpacing:'0.08em',color:'var(--text2)',textTransform:'uppercase',padding:'0 0.25rem'}}>📁 Folder</div>
-                )}
+
+            {/* Search results */}
+            {isSearching && (
+              searchResults.length > 0 ? (
+                <>
+                  <div style={{fontSize:'0.72rem',fontWeight:700,letterSpacing:'0.08em',color:'var(--text2)',textTransform:'uppercase',padding:'0 0.25rem'}}>
+                    🔍 {searchResults.length} hasil
+                  </div>
+                  {searchResults.map(item =>
+                    item.kind === 'folder' ? (
+                      <SortableFolderCard key={item.id} folder={item.data} isAdmin={isAdmin}
+                        onEdit={handleEditFolder} onDelete={(id,name)=>setDeletingItem({id,label:name,kind:'folder'})} onPasswordPrompt={setPasswordFolder}/>
+                    ) : (
+                      <SortableLinkCard key={item.id} link={item.data} isAdmin={isAdmin}
+                        onEdit={handleEditItem} onDelete={(id,label)=>setDeletingItem({id,label,kind:'link'})} onPasswordPrompt={setPasswordLink}/>
+                    )
+                  )}
+                </>
+              ) : (
+                <div style={{textAlign:'center',padding:'2rem 1rem',color:'var(--text2)'}}>
+                  <div style={{fontSize:'2.5rem',marginBottom:'0.5rem'}}>🔍</div>
+                  <p style={{margin:0,fontSize:'0.875rem'}}>Tidak ada hasil untuk &ldquo;{search}&rdquo;</p>
+                </div>
+              )
+            )}
+
+            {/* Normal mode */}
+            {!isSearching && (
+              <>
                 {isAdmin ? (
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndFolders}>
-                    <SortableContext items={folderIds} strategy={verticalListSortingStrategy}>
-                      {folders.map(f=>(
-                        <SortableFolderCard key={f.id} folder={f} isAdmin={true}
-                          onEdit={handleEditFolder} onDelete={(id,name)=>setDeletingItem({id,label:name,kind:'folder'})} onPasswordPrompt={setPasswordFolder}/>
-                      ))}
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+                      {items.map(item =>
+                        item.kind === 'folder' ? (
+                          <SortableFolderCard key={item.id} folder={item.data} isAdmin={true}
+                            onEdit={handleEditFolder} onDelete={(id,name)=>setDeletingItem({id,label:name,kind:'folder'})} onPasswordPrompt={setPasswordFolder}/>
+                        ) : (
+                          <SortableLinkCard key={item.id} link={item.data} isAdmin={true}
+                            onEdit={handleEditItem} onDelete={(id,label)=>setDeletingItem({id,label,kind:'link'})} onPasswordPrompt={setPasswordLink}/>
+                        )
+                      )}
                     </SortableContext>
                   </DndContext>
-                ) : displayFolders.map(f=>(
-                  <SortableFolderCard key={f.id} folder={f} isAdmin={false}
-                    onEdit={handleEditFolder} onDelete={(id,name)=>setDeletingItem({id,label:name,kind:'folder'})} onPasswordPrompt={setPasswordFolder}/>
-                ))}
-              </div>
-            )}
+                ) : (
+                  displayItems.map(item =>
+                    item.kind === 'folder' ? (
+                      <SortableFolderCard key={item.id} folder={item.data} isAdmin={false}
+                        onEdit={handleEditFolder} onDelete={(id,name)=>setDeletingItem({id,label:name,kind:'folder'})} onPasswordPrompt={setPasswordFolder}/>
+                    ) : (
+                      <SortableLinkCard key={item.id} link={item.data} isAdmin={false}
+                        onEdit={handleEditItem} onDelete={(id,label)=>setDeletingItem({id,label,kind:'link'})} onPasswordPrompt={setPasswordLink}/>
+                    )
+                  )
+                )}
 
-            {/* Separator between folders and links */}
-            {displayFolders.length>0&&rootLinks.length>0&&(
-              <div style={{height:1,background:'var(--border)',margin:'0.25rem 0'}}/>
-            )}
-
-            {/* Links section */}
-            {isAdmin ? (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndLinks}>
-                <SortableContext items={linkIds} strategy={verticalListSortingStrategy}>
-                  {links.map(link=>(
-                    <SortableLinkCard key={link.id} link={link} isAdmin={true}
-                      onEdit={handleEditItem} onDelete={(id,label)=>setDeletingItem({id,label,kind:'link'})} onPasswordPrompt={setPasswordLink}/>
-                  ))}
-                </SortableContext>
-              </DndContext>
-            ) : rootLinks.map(link=>(
-              <SortableLinkCard key={link.id} link={link} isAdmin={false}
-                onEdit={handleEditItem} onDelete={(id,label)=>setDeletingItem({id,label,kind:'link'})} onPasswordPrompt={setPasswordLink}/>
-            ))}
-
-            {!loading&&rootLinks.length===0&&displayFolders.length===0&&!isAdmin&&(
-              <div style={{textAlign:'center',padding:'3rem 1rem',color:'var(--text2)'}}>
-                <div style={{fontSize:'3rem',marginBottom:'0.75rem'}}>📭</div>
-                <p style={{margin:0}}>Belum ada konten yang tersedia</p>
-              </div>
-            )}
-            {!loading&&links.length===0&&folders.length===0&&isAdmin&&(
-              <div style={{textAlign:'center',padding:'3rem 1rem',border:'2px dashed var(--border)',borderRadius:14,color:'var(--text2)'}}>
-                <div style={{fontSize:'3rem',marginBottom:'0.75rem'}}>🔗</div>
-                <p style={{margin:'0 0 1rem'}}>Gunakan dropdown <strong>Tambah Item</strong> untuk mulai!</p>
-              </div>
+                {!loading && displayItems.length === 0 && !isAdmin && (
+                  <div style={{textAlign:'center',padding:'3rem 1rem',color:'var(--text2)'}}>
+                    <div style={{fontSize:'3rem',marginBottom:'0.75rem'}}>📭</div>
+                    <p style={{margin:0}}>Belum ada konten yang tersedia</p>
+                  </div>
+                )}
+                {!loading && items.length === 0 && isAdmin && (
+                  <div style={{textAlign:'center',padding:'3rem 1rem',border:'2px dashed var(--border)',borderRadius:14,color:'var(--text2)'}}>
+                    <div style={{fontSize:'3rem',marginBottom:'0.75rem'}}>🔗</div>
+                    <p style={{margin:'0 0 1rem'}}>Gunakan dropdown <strong>Tambah Item</strong> untuk mulai!</p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
 
         <div style={{textAlign:'center',marginTop:'3rem',paddingTop:'1.5rem',borderTop:'1px solid var(--border)'}}>
-          <p style={{margin:0,fontSize:'0.75rem',color:'var(--border)'}}>Portal Sekolah • Powered by Next.js</p>
+          <a
+            href="https://github.com/cakapbagus/school-portal"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              margin: 0,
+              fontSize: '0.75rem',
+              color: 'var(--text2)',
+              textDecoration: 'none',
+              transition: 'color 0.2s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
+          >
+            School Portal • 2026 &copy; cakapbagus
+          </a>
         </div>
       </div>
 
@@ -322,23 +408,13 @@ export default function Home() {
       {editingFolder&&<FolderFormModal folder={editingFolder} onClose={()=>setEditingFolder(null)} onSave={()=>{setEditingFolder(null);fetchData();}} onToast={showToast}/>}
 
       {deletingItem&&(
-        <div className="modal-overlay" onClick={()=>setDeletingItem(null)}>
+        <div className="modal-overlay">
           <div className="modal-box" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
             <div style={{textAlign:'center'}}>
               <div style={{fontSize:'3rem',marginBottom:'0.75rem'}}>{deletingItem.kind==='folder'?'📁':'🗑️'}</div>
               <h3 style={{margin:'0 0 0.5rem',fontFamily:'Fraunces,serif'}}>Hapus {deletingItem.kind==='folder'?'Folder':'Item'}?</h3>
-              {deletingItem.kind==='folder'&&<p style={{margin:'0 0 0.75rem',fontSize:'0.825rem',color:'var(--warning)',background:'rgba(251,191,36,0.1)',border:'1px solid rgba(251,191,36,0.3)',borderRadius:8,padding:'0.5rem'}}>⚠️ Referensi link di semua folder akan dihapus, namun link di dalam folder tidak akan ikut terhapus</p>}
-              {deletingItem.kind==='link'&&deletingLinkFolderCount>0&&(
-                <p style={{margin:'0 0 0.75rem',fontSize:'0.825rem',color:'var(--danger)',background:'rgba(248,113,113,0.1)',border:'1px solid rgba(248,113,113,0.3)',borderRadius:8,padding:'0.5rem'}}>
-                  ⛔ Link ini ada di <strong>{deletingLinkFolderCount} folder</strong>. Hapus permanen akan menghapusnya dari semua folder tersebut.
-                </p>
-              )}
-              {deletingItem.kind==='link'&&deletingLinkFolderCount===0&&(
-                <p style={{margin:'0 0 0.75rem',fontSize:'0.825rem',color:'var(--warning)',background:'rgba(251,191,36,0.1)',border:'1px solid rgba(251,191,36,0.3)',borderRadius:8,padding:'0.5rem'}}>
-                  ⚠️ Link akan dihapus permanen.
-                </p>
-              )}
-              <p style={{margin:'0 0 1.5rem',fontSize:'0.875rem',color:'var(--text2)'}}>Tindakan ini tidak bisa dibatalkan.</p>
+              {deletingItem.kind==='folder'&&<p style={{margin:'0 0 0.75rem',fontSize:'0.825rem',color:'var(--warning)',background:'rgba(251,191,36,0.1)',border:'1px solid rgba(251,191,36,0.3)',borderRadius:8,padding:'0.5rem'}}>⚠️ Semua link di dalam folder ini juga akan dihapus permanen.</p>}
+              {deletingItem.kind==='link'&&<p style={{margin:'0 0 0.75rem',fontSize:'0.825rem',color:'var(--text2)'}}>Tindakan ini tidak bisa dibatalkan.</p>}
               <div style={{display:'flex',gap:'0.75rem'}}>
                 <button className="btn btn-secondary" style={{flex:1}} onClick={()=>setDeletingItem(null)}>Batal</button>
                 <button className="btn btn-danger" style={{flex:1}} onClick={handleDeleteConfirm}>Ya, Hapus</button>
@@ -349,8 +425,8 @@ export default function Home() {
       )}
 
       {passwordLink&&<PasswordModal linkId={passwordLink.id} linkLabel={passwordLink.label.replace(/<[^>]+>/g,'')} onClose={()=>setPasswordLink(null)} onSuccess={url=>{setPasswordLink(null);window.open(url,'_blank','noopener,noreferrer');}}/>}
-      {toasts.map(t=><Toast key={t.id} message={t.msg} type={t.type} onClose={()=>setToasts(p=>p.filter(x=>x.id!==t.id))}/>)}
       {passwordFolder&&<FolderPasswordModal folderId={passwordFolder.id} folderName={passwordFolder.name} folderIcon={passwordFolder.icon} onClose={()=>setPasswordFolder(null)} onSuccess={()=>{setPasswordFolder(null);window.location.href=`/folder/${passwordFolder.id}`;}}/>}
+      {toasts.map(t=><Toast key={t.id} message={t.msg} type={t.type} onClose={()=>setToasts(p=>p.filter(x=>x.id!==t.id))}/>)}
       <ServerClock/>
       <ThemeSelector/>
       <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}} @keyframes dropdownIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>

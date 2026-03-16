@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 
 const L_SELECT = `
   l.l_id                AS id,
+  l.l_folder_id         AS folder_id,
   l.l_type              AS type,
   l.l_label             AS label,
   l.l_url               AS url,
@@ -12,7 +13,6 @@ const L_SELECT = `
   l.l_effect            AS effect,
   l.l_bg_color          AS bg_color,
   l.l_visible           AS visible,
-  l.l_show_root         AS show_root,
   l.l_position          AS position,
   l.l_scheduler_enabled AS scheduler_enabled,
   l.l_scheduler_start   AS scheduler_start,
@@ -28,37 +28,31 @@ export async function GET(req: NextRequest) {
 
   let links;
   if (folderId === 'root') {
-    // Tampilkan hanya link dengan show_root=1
+    // Link di root = l_folder_id NULL
     links = await db.execute(`
-      SELECT ${L_SELECT}
-      FROM links l
-      WHERE l.l_show_root = 1
+      SELECT ${L_SELECT} FROM links l
+      WHERE l.l_folder_id IS NULL
       ORDER BY l.l_position ASC, l.l_id ASC
     `);
   } else if (folderId) {
-    // Link dalam folder tertentu via junction table
+    // Link di dalam folder tertentu
     links = await db.execute({
-      sql: `
-        SELECT ${L_SELECT}
-        FROM links l
-        JOIN folder_links fl ON fl.fl_link_id = l.l_id
-        WHERE fl.fl_folder_id = ?
-        ORDER BY fl.fl_position ASC, l.l_id ASC
-      `,
+      sql: `SELECT ${L_SELECT} FROM links l
+            WHERE l.l_folder_id = ?
+            ORDER BY l.l_position ASC, l.l_id ASC`,
       args: [parseInt(folderId)],
     });
   } else {
-    // Semua link (untuk admin picker, dll)
+    // Semua link (admin picker dll)
     links = await db.execute(`
-      SELECT ${L_SELECT}
-      FROM links l
-      ORDER BY l.l_position ASC, l.l_id ASC
+      SELECT ${L_SELECT} FROM links l
+      ORDER BY l.l_folder_id ASC, l.l_position ASC, l.l_id ASC
     `);
   }
 
   const settingsRows = await db.execute(`
     SELECT s_key, s_value FROM settings
-    WHERE s_key IN ('site_title', 'site_subtitle', 'site_logo')
+    WHERE s_key IN ('site_title', 'site_subtitle', 'site_logo', 'site_banner')
   `);
   const settings: Record<string, string> = {};
   for (const row of settingsRows.rows) settings[row.s_key as string] = row.s_value as string;
@@ -76,15 +70,10 @@ export async function GET(req: NextRequest) {
     ORDER BY f.f_position ASC, f.f_id ASC
   `);
 
-  const memberships = await db.execute(`
-    SELECT fl_folder_id AS folder_id, fl_link_id AS link_id FROM folder_links
-  `);
-
   return Response.json({
     links: links.rows,
     settings,
     folders: foldersRows.rows,
-    memberships: memberships.rows,
   });
 }
 
@@ -95,27 +84,30 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const {
-    type = 'link', label, url, image_url, effect, bg_color,
-    visible, show_root, scheduler_enabled, scheduler_start, scheduler_end, password,
+    type = 'link', folder_id = null, label, url, image_url, effect, bg_color,
+    visible, scheduler_enabled, scheduler_start, scheduler_end, password,
   } = body;
 
   let l_password_hash = null;
   if (password?.trim()) l_password_hash = await bcrypt.hash(password.trim(), 10);
 
   const db = getDb();
-  const maxPos = await db.execute(`SELECT COALESCE(MAX(l_position), -1) AS m FROM links`);
-  const l_position = (maxPos.rows[0].m as number) + 1;
+  const fid = folder_id ? parseInt(folder_id) : null;
 
-  // show_root: default true kecuali eksplisit false (misal dibuat dari dalam folder)
-  const l_show_root = show_root === false || show_root === 0 ? 0 : 1;
+  // Posisi dalam scope yang sama (root atau folder tertentu)
+  const maxPos = fid
+    ? await db.execute({ sql: `SELECT COALESCE(MAX(l_position), -1) AS m FROM links WHERE l_folder_id = ?`, args: [fid] })
+    : await db.execute(`SELECT COALESCE(MAX(l_position), -1) AS m FROM links WHERE l_folder_id IS NULL`);
+  const l_position = (maxPos.rows[0].m as number) + 1;
 
   const result = await db.execute({
     sql: `INSERT INTO links
-            (l_type, l_label, l_url, l_image_url, l_effect, l_bg_color,
-             l_visible, l_show_root, l_position,
-             l_scheduler_enabled, l_scheduler_start, l_scheduler_end, l_password_hash)
+            (l_folder_id, l_type, l_label, l_url, l_image_url, l_effect, l_bg_color,
+             l_visible, l_position, l_scheduler_enabled, l_scheduler_start,
+             l_scheduler_end, l_password_hash)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     args: [
+      fid,
       type,
       type === 'separator' ? (label || '') : (label || ''),
       type === 'separator' ? '' : (url || ''),
@@ -123,7 +115,6 @@ export async function POST(req: NextRequest) {
       effect || 'none',
       bg_color || null,
       visible !== false ? 1 : 0,
-      l_show_root,
       l_position,
       scheduler_enabled ? 1 : 0,
       scheduler_start || null,
@@ -143,21 +134,10 @@ export async function PUT(req: NextRequest) {
   const body = await req.json();
   const db = getDb();
 
-  // Batch reorder links
+  // Batch reorder
   if (body.positions) {
     for (const { id, position } of body.positions) {
       await db.execute({ sql: `UPDATE links SET l_position = ? WHERE l_id = ?`, args: [position, id] });
-    }
-    return Response.json({ ok: true });
-  }
-
-  // Batch reorder links inside a folder
-  if (body.folder_positions) {
-    for (const { folder_id, link_id, position } of body.folder_positions) {
-      await db.execute({
-        sql: `UPDATE folder_links SET fl_position = ? WHERE fl_folder_id = ? AND fl_link_id = ?`,
-        args: [position, folder_id, link_id],
-      });
     }
     return Response.json({ ok: true });
   }
@@ -173,36 +153,24 @@ export async function PUT(req: NextRequest) {
     return Response.json({ ok: true });
   }
 
-  // Toggle show_root only
-  if (body.toggle_show_root !== undefined) {
-    await db.execute({
-      sql: `UPDATE links SET l_show_root = ? WHERE l_id = ?`,
-      args: [body.toggle_show_root ? 1 : 0, body.id],
-    });
-    return Response.json({ ok: true });
-  }
-
   // Update single link
   const {
     id, type = 'link', label, url, image_url, effect, bg_color,
-    visible, show_root, scheduler_enabled, scheduler_start, scheduler_end,
+    visible, scheduler_enabled, scheduler_start, scheduler_end,
     password, clear_password,
   } = body;
 
-  const l_show_root = show_root === false || show_root === 0 ? 0 : 1;
-
   const base = [
     type, label, url || '', image_url || null, effect || 'none', bg_color || null,
-    visible ? 1 : 0, l_show_root,
-    scheduler_enabled ? 1 : 0, scheduler_start || null, scheduler_end || null,
+    visible ? 1 : 0, scheduler_enabled ? 1 : 0,
+    scheduler_start || null, scheduler_end || null,
   ];
 
   if (clear_password) {
     await db.execute({
       sql: `UPDATE links SET
               l_type=?, l_label=?, l_url=?, l_image_url=?, l_effect=?, l_bg_color=?,
-              l_visible=?, l_show_root=?,
-              l_scheduler_enabled=?, l_scheduler_start=?, l_scheduler_end=?,
+              l_visible=?, l_scheduler_enabled=?, l_scheduler_start=?, l_scheduler_end=?,
               l_password_hash=NULL
             WHERE l_id=?`,
       args: [...base, id],
@@ -212,8 +180,7 @@ export async function PUT(req: NextRequest) {
     await db.execute({
       sql: `UPDATE links SET
               l_type=?, l_label=?, l_url=?, l_image_url=?, l_effect=?, l_bg_color=?,
-              l_visible=?, l_show_root=?,
-              l_scheduler_enabled=?, l_scheduler_start=?, l_scheduler_end=?,
+              l_visible=?, l_scheduler_enabled=?, l_scheduler_start=?, l_scheduler_end=?,
               l_password_hash=?
             WHERE l_id=?`,
       args: [...base, hash, id],
@@ -222,8 +189,7 @@ export async function PUT(req: NextRequest) {
     await db.execute({
       sql: `UPDATE links SET
               l_type=?, l_label=?, l_url=?, l_image_url=?, l_effect=?, l_bg_color=?,
-              l_visible=?, l_show_root=?,
-              l_scheduler_enabled=?, l_scheduler_start=?, l_scheduler_end=?
+              l_visible=?, l_scheduler_enabled=?, l_scheduler_start=?, l_scheduler_end=?
             WHERE l_id=?`,
       args: [...base, id],
     });
@@ -237,69 +203,9 @@ export async function DELETE(req: NextRequest) {
   const session = await getAdminSession();
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  /**
-   * context:
-   *   'root'      — set l_show_root=0 jika link masih ada di folder,
-   *                 hapus record jika tidak ada di folder manapun.
-   *   'folder:ID' — lepas dari folder ini; hapus record jika tidak ada
-   *                 di folder lain DAN show_root=0.
-   *   'permanent' — hapus record + semua referensi tanpa cek.
-   */
-  const { id, context = 'permanent' } = await req.json();
+  // Link independen — delete langsung hapus record
+  const { id } = await req.json();
   const db = getDb();
-
-  if (context === 'root') {
-    // Cek apakah link masih ada di folder manapun
-    const refs = await db.execute({
-      sql: `SELECT COUNT(*) AS cnt FROM folder_links WHERE fl_link_id = ?`,
-      args: [id],
-    });
-    const inFolders = (refs.rows[0].cnt as number) > 0;
-
-    if (inFolders) {
-      // Masih ada di folder — cukup sembunyikan dari root
-      await db.execute({ sql: `UPDATE links SET l_show_root = 0 WHERE l_id = ?`, args: [id] });
-      return Response.json({ ok: true, action: 'hidden_from_root' });
-    } else {
-      // Tidak ada di folder manapun — hapus record
-      await db.execute({ sql: `DELETE FROM links WHERE l_id = ?`, args: [id] });
-      return Response.json({ ok: true, action: 'deleted' });
-    }
-
-  } else if (typeof context === 'string' && context.startsWith('folder:')) {
-    const folderId = parseInt(context.split(':')[1]);
-    // Lepas dari folder ini
-    await db.execute({
-      sql: `DELETE FROM folder_links WHERE fl_folder_id = ? AND fl_link_id = ?`,
-      args: [folderId, id],
-    });
-    // Cek sisa referensi folder
-    const refs = await db.execute({
-      sql: `SELECT COUNT(*) AS cnt FROM folder_links WHERE fl_link_id = ?`,
-      args: [id],
-    });
-    const stillInFolders = (refs.rows[0].cnt as number) > 0;
-
-    if (!stillInFolders) {
-      // Tidak ada di folder manapun lagi
-      // Cek show_root: jika false, berarti link ini "orphan" — hapus record
-      const linkRow = await db.execute({
-        sql: `SELECT l_show_root FROM links WHERE l_id = ?`,
-        args: [id],
-      });
-      const showRoot = linkRow.rows[0]?.l_show_root as number;
-      if (!showRoot) {
-        await db.execute({ sql: `DELETE FROM links WHERE l_id = ?`, args: [id] });
-        return Response.json({ ok: true, action: 'deleted' });
-      }
-      // show_root=1 berarti link masih tampil di root — biarkan
-    }
-    return Response.json({ ok: true, action: 'removed_from_folder' });
-
-  } else {
-    // 'permanent'
-    await db.execute({ sql: `DELETE FROM folder_links WHERE fl_link_id = ?`, args: [id] });
-    await db.execute({ sql: `DELETE FROM links WHERE l_id = ?`, args: [id] });
-    return Response.json({ ok: true, action: 'deleted' });
-  }
+  await db.execute({ sql: `DELETE FROM links WHERE l_id = ?`, args: [id] });
+  return Response.json({ ok: true });
 }

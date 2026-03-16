@@ -16,7 +16,6 @@ export interface LinkItem {
   scheduler_start?: string;
   scheduler_end?: string;
   bg_color?: string;
-  show_root?: number;
 }
 
 interface LinkCardProps {
@@ -42,14 +41,15 @@ function SeparatorCard({ link, isAdmin, onEdit, onDelete }: {
   onEdit: (l: LinkItem) => void; onDelete: (id: number, label: string) => void;
 }) {
   return (
-    <div style={{ position: 'relative', padding: '0.35rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-      {link.label && (
-        <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em', color: 'var(--text2)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-          {link.label}
-        </span>
-      )}
-      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+    <div style={{ position: 'relative', padding: '0.35rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', opacity: link.visible ? 1 : 0.45 }}>
+      {link.label ? (
+        <>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em', color: 'var(--text2)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+            {link.label}
+          </span><div style={{ flex: 1, height: 1, background: 'var(--border)' }} /></>
+          ) : <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+      }
       {isAdmin && (
         <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
           <button onClick={() => onEdit(link)} className="btn btn-secondary btn-sm" style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}>✏️</button>
@@ -80,12 +80,12 @@ export function LinkCardDisplay({ link, isAdmin, onEdit, onDelete, onPasswordPro
 
   return (
     <div
-      className={`link-card effect-${link.effect || 'none'}${link.bg_color === 'rainbow' ? ' effect-rainbow' : ''}`}
+      className={`link-card effect-${link.effect || 'none'}`}
       onClick={!isAdmin ? handleClick : undefined}
       style={{
         opacity: isAdmin && !isVisible ? 0.45 : 1,
         cursor: isAdmin ? 'default' : 'pointer',
-        ...(link.bg_color && link.bg_color !== 'rainbow' ? { background: link.bg_color } : {}),
+        background: link.bg_color,
       }}
     >
       {link.image_url && (
@@ -102,7 +102,6 @@ export function LinkCardDisplay({ link, isAdmin, onEdit, onDelete, onPasswordPro
             <span style={{ color: 'var(--accent3)', opacity: 0.7 }}>{link.url.length > 40 ? link.url.slice(0, 40) + '…' : link.url}</span>
             {hasPassword && <span style={{ color: 'var(--warning)' }}>🔒</span>}
             {!link.visible && <span style={{ color: 'var(--danger)' }}>Tersembunyi</span>}
-            {link.show_root === 0 && <span style={{ color: 'var(--text2)', opacity:0.7 }}>🏠 Root: off</span>}
             {!!link.scheduler_enabled && !schedulerOk && <span style={{ color: 'var(--warning)' }}>Jadwal: nonaktif</span>}
             {!!link.scheduler_enabled && schedulerOk && <span style={{ color: 'var(--success)' }}>Jadwal: aktif</span>}
           </div>
@@ -130,7 +129,7 @@ export function LinkCardDisplay({ link, isAdmin, onEdit, onDelete, onPasswordPro
 }
 
 export function SortableLinkCard(props: LinkCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.link.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `link-${props.link.id}` });
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 100 : 'auto', position: 'relative' }}>
       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>

@@ -19,6 +19,7 @@ export default function LoginModal({ onClose, onSuccess }: LoginModalProps) {
     if (!pw.trim()) return;
     setLoading(true);
     setError('');
+
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',

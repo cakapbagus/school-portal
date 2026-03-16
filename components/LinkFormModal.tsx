@@ -14,12 +14,11 @@ export interface LinkData {
   scheduler_start?: string;
   scheduler_end?: string;
   has_password?: boolean;
-  show_root?: boolean | number;
 }
 
 interface LinkFormModalProps {
   link?: LinkData;
-  defaultShowRoot?: boolean;
+  folderId?: number;
   onClose: () => void;
   onSave: () => void;
   onToast: (msg: string, type?: 'success' | 'error') => void;
@@ -41,15 +40,14 @@ const PRESET_COLORS = [
   '#f87171', '#fbbf24', '#f472b6', '#fb923c',
 ];
 
-type BgMode = 'none' | 'solid' | 'rainbow';
+type BgMode = 'none' | 'solid';
 
 function parseBgMode(bg_color?: string): BgMode {
   if (!bg_color) return 'none';
-  if (bg_color === 'rainbow') return 'rainbow';
   return 'solid';
 }
 
-export default function LinkFormModal({ link, defaultShowRoot = true, onClose, onSave, onToast }: LinkFormModalProps) {
+export default function LinkFormModal({ link, folderId, onClose, onSave, onToast }: LinkFormModalProps) {
   const isEdit = !!link?.id;
   const [label, setLabel] = useState(link?.label || '');
   const [url, setUrl] = useState(link?.url || '');
@@ -58,12 +56,9 @@ export default function LinkFormModal({ link, defaultShowRoot = true, onClose, o
   const [effect, setEffect] = useState(link?.effect || 'none');
 
   // Background color state
-  const [showRoot, setShowRoot] = useState(
-    link ? (link.show_root !== false && link.show_root !== 0 && link.show_root !== null) : defaultShowRoot
-  );
   const [bgMode, setBgMode] = useState<BgMode>(parseBgMode(link?.bg_color));
   const [solidColor, setSolidColor] = useState(
-    link?.bg_color && link.bg_color !== 'rainbow' ? link.bg_color : '#1a1d2e'
+    link?.bg_color ? link.bg_color : '#1a1d2e'
   );
   const [showColorPicker, setShowColorPicker] = useState(false);
   const colorPickerRef = useRef<HTMLDivElement>(null);
@@ -92,7 +87,6 @@ export default function LinkFormModal({ link, defaultShowRoot = true, onClose, o
   // Compute final bg_color value to save
   function getFinalBgColor(): string | null {
     if (bgMode === 'none') return null;
-    if (bgMode === 'rainbow') return 'rainbow';
     return solidColor;
   }
 
@@ -131,6 +125,7 @@ export default function LinkFormModal({ link, defaultShowRoot = true, onClose, o
       return;
     }
     let finalUrl = url.trim();
+    if (!/^https?:\/\//i.test(finalUrl)) finalUrl = 'https://' + finalUrl;
 
     setSaving(true);
     try {
@@ -140,7 +135,7 @@ export default function LinkFormModal({ link, defaultShowRoot = true, onClose, o
       const body: Record<string, unknown> = {
         label, url: finalUrl, image_url: imageUrl,
         effect, bg_color: getFinalBgColor(),
-        visible, show_root: showRoot, scheduler_enabled: schedulerEnabled,
+        visible, scheduler_enabled: schedulerEnabled,
         scheduler_start: schedulerStart || null,
         scheduler_end: schedulerEnd || null,
       };
@@ -182,11 +177,11 @@ export default function LinkFormModal({ link, defaultShowRoot = true, onClose, o
 
   // Live preview style
   const previewStyle: React.CSSProperties = {
-    background: bgMode === 'none' ? 'var(--card)' : bgMode === 'rainbow' ? undefined : solidColor,
+    background: bgMode === 'none' ? 'var(--card)' : solidColor,
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -232,7 +227,7 @@ export default function LinkFormModal({ link, defaultShowRoot = true, onClose, o
           <div>
             <label style={fl}>Warna Background Card</label>
 
-            {/* Radio: None / Solid / Rainbow */}
+            {/* Radio: None / Solid */}
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <label style={radioStyle(bgMode === 'none')} onClick={() => setBgMode('none')}>
                 <input type="radio" name="bgMode" checked={bgMode === 'none'} onChange={() => setBgMode('none')} style={{ display: 'none' }} />
@@ -248,14 +243,6 @@ export default function LinkFormModal({ link, defaultShowRoot = true, onClose, o
                   {bgMode === 'solid' && <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', display: 'block' }} />}
                 </span>
                 <span style={{ fontSize: '0.825rem', color: 'var(--text)' }}>Solid</span>
-              </label>
-
-              <label style={radioStyle(bgMode === 'rainbow')} onClick={() => setBgMode('rainbow')}>
-                <input type="radio" name="bgMode" checked={bgMode === 'rainbow'} onChange={() => setBgMode('rainbow')} style={{ display: 'none' }} />
-                <span style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${bgMode === 'rainbow' ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {bgMode === 'rainbow' && <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', display: 'block' }} />}
-                </span>
-                <span style={{ fontSize: '0.825rem', color: 'var(--text)' }}>🌈 Rainbow</span>
               </label>
             </div>
 
@@ -317,27 +304,13 @@ export default function LinkFormModal({ link, defaultShowRoot = true, onClose, o
               </div>
             )}
 
-            {/* Rainbow preview note */}
-            {bgMode === 'rainbow' && (
-              <div style={{
-                background: 'linear-gradient(135deg,#667eea,#764ba2,#f093fb,#f5576c,#4facfe)',
-                borderRadius: 10, padding: '0.75rem 1rem',
-                fontSize: '0.825rem', color: '#fff', fontWeight: 500,
-                backgroundSize: '300% 300%',
-                animation: 'rainbowShift 4s ease infinite',
-              }}>
-                🌈 Card akan menggunakan efek warna-warni bergerak
-              </div>
-            )}
-
             {/* Card preview */}
             {bgMode !== 'none' && (
               <div style={{ marginTop: '0.75rem' }}>
                 <p style={{ ...fl, marginBottom: '0.35rem' }}>Preview Card</p>
                 <div
-                  className={bgMode === 'rainbow' ? 'effect-rainbow' : ''}
                   style={{
-                    ...previewStyle,
+                    background: solidColor,
                     border: '1px solid var(--border)', borderRadius: 14,
                     padding: '0.875rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
                   }}
@@ -364,19 +337,19 @@ export default function LinkFormModal({ link, defaultShowRoot = true, onClose, o
           {/* Visible + Scheduler */}
           <div style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 10, padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
-              <input type="checkbox" checked={visible} onChange={e => setVisible(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
+              <input type="checkbox" checked={visible} onChange={e => setVisible(e.target.checked)} disabled={schedulerEnabled}
+                style={{ width: 16, height: 16, accentColor: 'var(--accent)', opacity: schedulerEnabled ? 0.5 : 1 }}
+              />
               <span style={{ fontSize: '0.875rem' }}>
                 <strong>Tampilkan</strong> <span style={{ color: 'var(--text2)' }}>(link aktif & terlihat di halaman)</span>
               </span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showRoot} onChange={e => setShowRoot(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
-              <span style={{ fontSize: '0.875rem' }}>
-                <strong>Tampil di Root</strong> <span style={{ color: 'var(--text2)' }}>(muncul di halaman utama)</span>
-              </span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
-              <input type="checkbox" checked={schedulerEnabled} onChange={e => setSchedulerEnabled(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
+              <input type="checkbox" checked={schedulerEnabled} onChange={e => {
+                  setSchedulerEnabled(e.target.checked);
+                  if (e.target.checked) setVisible(true);
+                }}
+                style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
               <span style={{ fontSize: '0.875rem' }}>
                 <strong>Aktifkan Jadwal Tampil</strong> <span style={{ color: 'var(--text2)' }}>(otomatis show/hide berdasarkan waktu)</span>
               </span>

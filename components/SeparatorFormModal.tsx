@@ -3,12 +3,13 @@ import { useState } from 'react';
 
 interface SeparatorFormModalProps {
   separator?: { id: number; label: string; visible: boolean };
+  folderId?: number;
   onClose: () => void;
   onSave: () => void;
   onToast: (msg: string, type?: 'success' | 'error') => void;
 }
 
-export default function SeparatorFormModal({ separator, onClose, onSave, onToast }: SeparatorFormModalProps) {
+export default function SeparatorFormModal({ separator, folderId, onClose, onSave, onToast }: SeparatorFormModalProps) {
   const isEdit = !!separator?.id;
   const [label, setLabel] = useState(separator?.label || '');
   const [visible, setVisible] = useState(separator?.visible !== false);
@@ -19,7 +20,7 @@ export default function SeparatorFormModal({ separator, onClose, onSave, onToast
     try {
       const body = isEdit
         ? { id: separator!.id, type: 'separator', label, url: '', effect: 'none', visible }
-        : { type: 'separator', label, url: '', effect: 'none', visible };
+        : { type: 'separator', label, url: '', effect: 'none', visible, ...(folderId ? { folder_id: folderId } : {}) };
 
       const res = await fetch('/api/links', {
         method: isEdit ? 'PUT' : 'POST',
@@ -42,7 +43,7 @@ export default function SeparatorFormModal({ separator, onClose, onSave, onToast
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <h3 style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: '1.2rem' }}>
@@ -55,9 +56,13 @@ export default function SeparatorFormModal({ separator, onClose, onSave, onToast
         <div style={{ marginBottom: '1.25rem', padding: '0.75rem 1rem', background: 'var(--bg3)', borderRadius: 10, border: '1px solid var(--border)' }}>
           <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', color: 'var(--text2)' }}>Preview:</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            {label && <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em', color: 'var(--text2)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</span>}
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            { label ? (
+              <>
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                {label && <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em', color: 'var(--text2)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</span>}
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} /></>
+              ) : <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            }
           </div>
         </div>
 

@@ -5,6 +5,7 @@ interface SiteSettings {
   site_title: string;
   site_subtitle: string;
   site_logo: string;
+  site_banner: string;
 }
 
 interface SettingsModalProps {
@@ -24,6 +25,9 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
   const [subtitle, setSubtitle] = useState(settings.site_subtitle || '');
   const [logo, setLogo] = useState(settings.site_logo || '');
   const [originalLogo, setOriginalLogo] = useState(settings.site_logo || '');
+  const [banner, setBanner] = useState(settings.site_banner || '');
+  const [originalBanner, setOriginalBanner] = useState(settings.site_banner || '');
+  const bannerFileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [savingPortal, setSavingPortal] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -53,6 +57,21 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
     finally { setUploading(false); }
   }
 
+  async function handleUploadBanner(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.url) setBanner(data.url);
+      else onToast('Upload gagal', 'error');
+    } catch { onToast('Upload gagal', 'error'); }
+    finally { setUploading(false); }
+  }
+
   async function deleteFile(url: string) {
     if (!url || !url.startsWith('/uploads/')) return;
     try {
@@ -67,18 +86,17 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
   async function handleSavePortal() {
     setSavingPortal(true);
     try {
-      // Hapus file fisik jika logo lama adalah local upload dan diganti/dihapus
-      if (originalLogo !== logo && originalLogo.startsWith('/uploads/')) {
-        await deleteFile(originalLogo);
-      }
+      if (originalLogo !== logo && originalLogo.startsWith('/uploads/')) await deleteFile(originalLogo);
+      if (originalBanner !== banner && originalBanner.startsWith('/uploads/')) await deleteFile(originalBanner);
       setOriginalLogo(logo);
+      setOriginalBanner(banner);
       const res = await fetch('/api/links', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: { site_title: title, site_subtitle: subtitle, site_logo: logo } }),
+        body: JSON.stringify({ settings: { site_title: title, site_subtitle: subtitle, site_logo: logo, site_banner: banner } }),
       });
       if (!res.ok) throw new Error();
-      onSave({ site_title: title, site_subtitle: subtitle, site_logo: logo });
+      onSave({ site_title: title, site_subtitle: subtitle, site_logo: logo, site_banner: banner });
       onToast('Pengaturan disimpan', 'success');
       onClose();
     } catch { onToast('Gagal menyimpan', 'error'); }
@@ -131,7 +149,7 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
   const strength = pwStrength(newPw);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
@@ -190,6 +208,30 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
                       style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--danger)', fontFamily: 'Plus Jakarta Sans, sans-serif', padding: '0.25rem 0.5rem', borderRadius: 6 }}
                     >
                       🗑️ Hapus Logo
+                    </button>
+                  </div>
+                )}
+              </div>
+              {/* Banner */}
+              <div>
+                <label style={fl}>Banner / Header Image</label>
+                <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', color: 'var(--text2)' }}>
+                  Gambar lebar yang tampil di atas portal (rekomendasi: 1200×400px)
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <input className="field" type="text" placeholder="URL banner atau upload..." value={banner} onChange={e => setBanner(e.target.value)} style={{ flex: 1 }} />
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => bannerFileRef.current?.click()} disabled={uploading}>
+                    {uploading ? '...' : '📁'}
+                  </button>
+                  <input ref={bannerFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleUploadBanner} />
+                </div>
+                {banner && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={banner} alt="" style={{ width: '100%', maxHeight: 100, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />
+                    <button type="button" onClick={() => { deleteFile(banner); setBanner(''); }}
+                      style={{ marginTop: '0.35rem', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--danger)', fontFamily: 'Plus Jakarta Sans, sans-serif', padding: '0.25rem 0.5rem', borderRadius: 6 }}>
+                      🗑️ Hapus Banner
                     </button>
                   </div>
                 )}

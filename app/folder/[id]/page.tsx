@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, useCallback, use, useRef } from 'react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors, DragEndEvent,
@@ -27,6 +27,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [locked, setLocked] = useState(false);
+  const [search, setSearch] = useState('');
   const [showAddLink, setShowAddLink] = useState(false);
   const [showAddSeparator, setShowAddSeparator] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -36,6 +37,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   const [passwordLink, setPasswordLink] = useState<LinkItem|null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [tc, setTc] = useState(0);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -61,23 +63,19 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
       setIsAdmin(ad.isAdmin || false);
       const found = (fd.folders || []).find((f: FolderInfo) => f.id === parseInt(id));
       setFolder(found || null);
-      // Check if folder is password-protected and not yet unlocked
       if (found?.has_password && !ad.isAdmin) {
         const unlocked = sessionStorage.getItem(`folder_unlocked_${id}`);
         if (!unlocked) setLocked(true);
       }
-
     } catch { showToast('Gagal memuat data', 'error'); }
     finally { setLoading(false); }
   }, [id]); // eslint-disable-line
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function h(e: MouseEvent) {
-      const el = document.getElementById('folder-dropdown');
-      if (el && !el.contains(e.target as Node)) setShowDropdown(false);
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setShowDropdown(false);
     }
     if (showDropdown) document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
@@ -100,8 +98,8 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     if (!deletingLink) return;
     try {
       await fetch('/api/links', { method: 'DELETE', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ id: deletingLink.id, context: `folder:${id}` }) });
-      showToast('Link dilepas dari folder', 'success'); setDeletingLink(null); fetchData();
+        body: JSON.stringify({ id: deletingLink.id }) });
+      showToast('Link dihapus', 'success'); setDeletingLink(null); fetchData();
     } catch { showToast('Gagal menghapus', 'error'); }
   }
 
@@ -110,16 +108,20 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
       setEditingSeparator({ id: link.id, label: link.label, visible: !!link.visible });
     } else {
       setEditingLink({ id: link.id, label: link.label, url: link.url, image_url: link.image_url,
-        effect: link.effect, bg_color: link.bg_color, visible: !!link.visible, show_root: link.show_root !== 0,
+        effect: link.effect, bg_color: link.bg_color, visible: !!link.visible,
         scheduler_enabled: !!link.scheduler_enabled, scheduler_start: link.scheduler_start,
         scheduler_end: link.scheduler_end, has_password: !!link.has_password,
       });
     }
   }
 
+  // Search filter
+  const searchLower = search.toLowerCase().trim();
+  const isSearching = searchLower.length > 0;
+
   const displayLinks = isAdmin ? links : links.filter(l => {
     if (!l.visible) return false;
-    if (l.type === 'separator') return true;
+    if (l.type === 'separator') return !isSearching;
     if (l.scheduler_enabled) {
       const now = new Date();
       if (l.scheduler_start && now < new Date(l.scheduler_start)) return false;
@@ -128,97 +130,118 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     return true;
   });
 
-  // Locked gate — show password modal fullscreen
+  const filteredLinks = isSearching
+    ? (isAdmin ? links : displayLinks).filter(l => {
+        if (l.type === 'separator') return false;
+        const label = l.label.replace(/<[^>]+>/g,'').toLowerCase();
+        return label.includes(searchLower) || (l.url||'').toLowerCase().includes(searchLower);
+      })
+    : null;
+
+  // Locked gate
   if (locked && folder) {
     return (
       <div className="portal-bg" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <FolderPasswordModal
-          folderId={folder.id}
-          folderName={folder.name}
-          folderIcon={folder.icon}
-          onClose={() => window.location.href = '/'}
-          onSuccess={() => setLocked(false)}
-        />
+        <FolderPasswordModal folderId={folder.id} folderName={folder.name} folderIcon={folder.icon}
+          onClose={() => window.location.href = '/'} onSuccess={() => setLocked(false)}/>
       </div>
     );
   }
 
+  const dropdownItems = [
+    { icon:'🔗', label:'Link / URL', desc:'Tambah tautan', onClick:()=>{setShowDropdown(false);setShowAddLink(true);} },
+    { icon:'➖', label:'Separator', desc:'Garis pemisah', onClick:()=>{setShowDropdown(false);setShowAddSeparator(true);}, divider:true },
+  ];
+
   return (
     <div className="portal-bg" style={{ minHeight: '100vh' }}>
-      {/* Top bar */}
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1.5rem', zIndex: 40, pointerEvents: 'none' }}>
-        {/* Back button */}
-        <a href="/" style={{
-          pointerEvents: 'all', display: 'flex', alignItems: 'center', gap: '0.4rem',
-          background: 'rgba(26,29,46,0.85)', backdropFilter: 'blur(8px)',
-          border: '1px solid var(--border)', borderRadius: 8,
-          color: 'var(--text)', padding: '0.35rem 0.75rem', fontSize: '0.8rem',
-          textDecoration: 'none', fontFamily: 'Plus Jakarta Sans, sans-serif',
-          transition: 'all 0.2s',
-        }}>← Kembali</a>
-
-        {/* Admin controls */}
-        {isAdmin && (
-          <div style={{ display: 'flex', gap: '0.5rem', pointerEvents: 'all' }}>
-            <div id="folder-dropdown" style={{ position: 'relative' }}>
-              <button className="btn btn-primary btn-sm" onClick={() => setShowDropdown(v => !v)}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                ➕ Tambah Item
-                <span style={{ fontSize: '0.6rem', display: 'inline-block', transition: 'transform 0.2s', transform: showDropdown ? 'rotate(180deg)' : 'none' }}>▼</span>
-              </button>
-              {showDropdown && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                  background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12,
-                  minWidth: 220, boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
-                  overflow: 'hidden', animation: 'dropdownIn 0.15s ease', zIndex: 100,
-                }}>
-                  {[
-                    { icon:'🔗', label:'Link / URL', desc:'Tambah tautan', onClick:()=>{setShowDropdown(false);setShowAddLink(true);} },
-                    { icon:'➖', label:'Separator', desc:'Garis pemisah', onClick:()=>{setShowDropdown(false);setShowAddSeparator(true);}, divider:true },
-                  ].map((item,i) => (
-                    <div key={i}>
-                      {item.divider && <div style={{ height:1, background:'var(--border)' }} />}
-                      <button onClick={item.onClick} style={{ width:'100%', background:'none', border:'none', padding:'0.75rem 1rem', cursor:'pointer', display:'flex', alignItems:'center', gap:'0.75rem', fontFamily:'Plus Jakarta Sans,sans-serif', transition:'background 0.15s', textAlign:'left' }}
-                        onMouseEnter={e=>(e.currentTarget.style.background='var(--bg3)')}
-                        onMouseLeave={e=>(e.currentTarget.style.background='none')}>
-                        <span style={{ width:34, height:34, borderRadius:8, background:'var(--bg3)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1rem' }}>{item.icon}</span>
-                        <div>
-                          <div style={{ fontSize:'0.875rem', fontWeight:600, color:'var(--text)' }}>{item.label}</div>
-                          <div style={{ fontSize:'0.72rem', color:'var(--text2)', marginTop:1 }}>{item.desc}</div>
-                        </div>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Content */}
-      <div style={{ maxWidth: 620, margin: '0 auto', padding: '4.5rem 1.5rem 3rem' }}>
+      <div style={{ maxWidth:480, margin:'0 auto', padding:'4rem 1rem 3rem' }}>       
+        {/* Top bar — back*/}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0.75rem 1.25rem', pointerEvents:'none', marginBottom:'1rem' }}>
+          <a href="/" style={{
+            pointerEvents:'all', display:'flex', alignItems:'center', gap:'0.4rem',
+            background:'var(--card)', backdropFilter:'blur(8px)',
+            border:'1px solid var(--border)', borderRadius:8,
+            color:'var(--text2)', padding:'0.35rem 0.75rem', fontSize:'0.8rem',
+            textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif', transition:'all 0.2s',
+          }}
+            onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.color='var(--text)';(e.currentTarget as HTMLElement).style.borderColor='var(--accent)';}}
+            onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.color='var(--text2)';(e.currentTarget as HTMLElement).style.borderColor='var(--border)';}}>
+            ← Kembali
+          </a>
+        </div>
+
         {/* Folder header */}
-        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+        <div style={{ textAlign:'center', marginBottom:'1.75rem' }}>
           <div style={{
-            width: 72, height: 72, borderRadius: 16, fontSize: '2.5rem',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 1rem',
-            background: 'var(--card)', border: '1px solid var(--border)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+            width:72, height:72, borderRadius:'50%', fontSize:'2rem',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            margin:'0 auto 0.875rem',
+            background:'var(--card)', border:'2px solid var(--border)',
+            boxShadow:'0 4px 16px rgba(0,0,0,0.15)',
           }}>
             {folder?.icon || '📁'}
           </div>
-          <h1 style={{ fontFamily: 'Fraunces, serif', fontSize: 'clamp(1.4rem,4vw,1.8rem)', fontWeight: 700, margin: '0 0 0.35rem', background: 'linear-gradient(135deg,var(--text) 0%,var(--accent2) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+          <h1 style={{ fontFamily:'Fraunces, serif', fontSize:'1.25rem', fontWeight:700, margin:'0 0 0.3rem', color:'var(--text)' }}>
             {folder?.name || 'Folder'}
           </h1>
-          {folder?.description && <p style={{ margin: 0, color: 'var(--text2)', fontSize: '0.875rem' }}>{folder.description}</p>}
+          {folder?.description && <p style={{ margin:0, color:'var(--text2)', fontSize:'0.825rem' }}>{folder.description}</p>}
+
           {isAdmin && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.75rem', background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: 999, padding: '0.3rem 0.8rem', fontSize: '0.75rem', color: 'var(--accent2)' }}>
-              <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--success)', display:'inline-block' }}/>
-              Mode Admin — Seret ⠿ untuk atur posisi
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.6rem', marginTop:'0.75rem' }}>
+              <div style={{ display:'inline-flex', alignItems:'center', gap:'0.4rem', background:'rgba(108,99,255,0.15)', border:'1px solid rgba(108,99,255,0.3)', borderRadius:999, padding:'0.3rem 0.8rem', fontSize:'0.75rem', color:'var(--accent2)' }}>
+                <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--success)', display:'inline-block' }}/>
+                Mode Admin — Seret ⠿ untuk atur posisi
+              </div>
+              {/* Dropdown tambah item — di tengah seperti halaman root */}
+              <div ref={dropdownRef} style={{ position:'relative' }}>
+                <button className="btn btn-primary btn-sm" onClick={() => setShowDropdown(v => !v)}
+                  style={{ display:'flex', alignItems:'center', gap:'0.4rem', padding:'0.45rem 1rem', fontSize:'0.82rem' }}>
+                  ➕ Tambah Item
+                  <span style={{ fontSize:'0.55rem', display:'inline-block', transition:'transform 0.2s', transform:showDropdown?'rotate(180deg)':'none' }}>▼</span>
+                </button>
+                {showDropdown && (
+                  <div style={{
+                    position:'absolute', top:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)',
+                    background:'var(--card)', border:'1px solid var(--border)', borderRadius:12,
+                    minWidth:230, boxShadow:'0 12px 32px rgba(0,0,0,0.5)',
+                    overflow:'hidden', animation:'dropdownIn 0.15s ease', zIndex:100,
+                  }}>
+                    {dropdownItems.map((item, i) => (
+                      <div key={i}>
+                        {item.divider && <div style={{ height:1, background:'var(--border)' }}/>}
+                        <button onClick={item.onClick} style={{ width:'100%', background:'none', border:'none', padding:'0.75rem 1rem', cursor:'pointer', display:'flex', alignItems:'center', gap:'0.75rem', fontFamily:'Plus Jakarta Sans,sans-serif', transition:'background 0.15s', textAlign:'left' }}
+                          onMouseEnter={e=>(e.currentTarget.style.background='var(--bg3)')}
+                          onMouseLeave={e=>(e.currentTarget.style.background='none')}>
+                          <span style={{ width:34, height:34, borderRadius:8, background:'var(--bg3)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1rem', flexShrink:0 }}>{item.icon}</span>
+                          <div>
+                            <div style={{ fontSize:'0.875rem', fontWeight:600, color:'var(--text)' }}>{item.label}</div>
+                            <div style={{ fontSize:'0.72rem', color:'var(--text2)', marginTop:1 }}>{item.desc}</div>
+                          </div>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* Search bar */}
+        <div style={{ position:'relative', marginBottom:'1rem' }}>
+          <span style={{ position:'absolute', left:'0.875rem', top:'50%', transform:'translateY(-50%)', color:'var(--text2)', fontSize:'0.9rem', pointerEvents:'none' }}>🔍</span>
+          <input
+            className="field"
+            type="text"
+            placeholder="Cari link di folder ini..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft:'2.25rem', borderRadius:999, fontSize:'0.875rem' }}
+          />
+          {search && (
+            <button onClick={()=>setSearch('')} style={{ position:'absolute', right:'0.75rem', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'var(--text2)', cursor:'pointer', fontSize:'0.9rem', padding:0, lineHeight:1 }}>✕</button>
           )}
         </div>
 
@@ -230,43 +253,80 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
           </div>
         ) : (
           <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
-            {isAdmin ? (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={links.map(l=>l.id)} strategy={verticalListSortingStrategy}>
-                  {links.map(link => (
-                    <SortableLinkCard key={link.id} link={link} isAdmin={true}
+            {/* Search results */}
+            {isSearching ? (
+              filteredLinks && filteredLinks.length > 0 ? (
+                <>
+                  <div style={{ fontSize:'0.72rem', fontWeight:700, letterSpacing:'0.08em', color:'var(--text2)', textTransform:'uppercase', padding:'0 0.25rem' }}>
+                    🔍 {filteredLinks.length} hasil
+                  </div>
+                  {filteredLinks.map(link => (
+                    <SortableLinkCard key={link.id} link={link} isAdmin={isAdmin}
                       onEdit={handleEditItem} onDelete={(id,label)=>setDeletingLink({id,label})} onPasswordPrompt={setPasswordLink}/>
                   ))}
-                </SortableContext>
-              </DndContext>
-            ) : displayLinks.map(link => (
-              <SortableLinkCard key={link.id} link={link} isAdmin={false}
-                onEdit={handleEditItem} onDelete={(id,label)=>setDeletingLink({id,label})} onPasswordPrompt={setPasswordLink}/>
-            ))}
+                </>
+              ) : (
+                <div style={{ textAlign:'center', padding:'2rem 1rem', color:'var(--text2)' }}>
+                  <div style={{ fontSize:'2.5rem', marginBottom:'0.5rem' }}>🔍</div>
+                  <p style={{ margin:0, fontSize:'0.875rem' }}>Tidak ada hasil untuk &ldquo;{search}&rdquo;</p>
+                </div>
+              )
+            ) : (
+              <>
+                {isAdmin ? (
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={links.map(l=>l.id)} strategy={verticalListSortingStrategy}>
+                      {links.map(link => (
+                        <SortableLinkCard key={link.id} link={link} isAdmin={true}
+                          onEdit={handleEditItem} onDelete={(id,label)=>setDeletingLink({id,label})} onPasswordPrompt={setPasswordLink}/>
+                      ))}
+                    </SortableContext>
+                  </DndContext>
+                ) : displayLinks.map(link => (
+                  <SortableLinkCard key={link.id} link={link} isAdmin={false}
+                    onEdit={handleEditItem} onDelete={(id,label)=>setDeletingLink({id,label})} onPasswordPrompt={setPasswordLink}/>
+                ))}
 
-            {displayLinks.length === 0 && !isAdmin && (
-              <div style={{ textAlign:'center', padding:'3rem 1rem', color:'var(--text2)' }}>
-                <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>📭</div>
-                <p style={{ margin:0 }}>Belum ada link di folder ini</p>
-              </div>
-            )}
-            {links.length === 0 && isAdmin && (
-              <div style={{ textAlign:'center', padding:'3rem 1rem', border:'2px dashed var(--border)', borderRadius:14, color:'var(--text2)' }}>
-                <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>🔗</div>
-                <p style={{ margin:'0 0 1rem' }}>Folder kosong. Tambahkan link pertama!</p>
-              </div>
+                {displayLinks.length === 0 && !isAdmin && (
+                  <div style={{ textAlign:'center', padding:'3rem 1rem', color:'var(--text2)' }}>
+                    <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>📭</div>
+                    <p style={{ margin:0 }}>Belum ada link di folder ini</p>
+                  </div>
+                )}
+                {links.length === 0 && isAdmin && (
+                  <div style={{ textAlign:'center', padding:'3rem 1rem', border:'2px dashed var(--border)', borderRadius:14, color:'var(--text2)' }}>
+                    <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>🔗</div>
+                    <p style={{ margin:'0 0 1rem' }}>Gunakan <strong>✚ Tambah Item</strong> di atas!</p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
 
         <div style={{ textAlign:'center', marginTop:'3rem', paddingTop:'1.5rem', borderTop:'1px solid var(--border)' }}>
-          <p style={{ margin:0, fontSize:'0.75rem', color:'var(--border)' }}>Portal Sekolah • Powered by Next.js</p>
+          <a
+            href="https://github.com/cakapbagus/school-portal"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              margin: 0,
+              fontSize: '0.75rem',
+              color: 'var(--text2)',
+              textDecoration: 'none',
+              transition: 'color 0.2s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
+          >
+            School Portal • 2026 &copy; cakapbagus
+          </a>
         </div>
       </div>
 
       {/* Modals */}
-      {showAddLink && <LinkFormModal defaultShowRoot={false} onClose={()=>setShowAddLink(false)} onSave={()=>{setShowAddLink(false);fetchData();}} onToast={showToast}/>}
-      {showAddSeparator && <SeparatorFormModal onClose={()=>setShowAddSeparator(false)} onSave={()=>{setShowAddSeparator(false);fetchData();}} onToast={showToast}/>}
+      {showAddLink && <LinkFormModal folderId={parseInt(id)} onClose={()=>setShowAddLink(false)} onSave={()=>{setShowAddLink(false);fetchData();}} onToast={showToast}/>}
+      {showAddSeparator && <SeparatorFormModal folderId={parseInt(id)} onClose={()=>setShowAddSeparator(false)} onSave={()=>{setShowAddSeparator(false);fetchData();}} onToast={showToast}/>}
       {editingLink && <LinkFormModal link={editingLink} onClose={()=>setEditingLink(null)} onSave={()=>{setEditingLink(null);fetchData();}} onToast={showToast}/>}
       {editingSeparator && <SeparatorFormModal separator={editingSeparator} onClose={()=>setEditingSeparator(null)} onSave={()=>{setEditingSeparator(null);fetchData();}} onToast={showToast}/>}
 
@@ -274,14 +334,14 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
         <div className="modal-overlay" onClick={()=>setDeletingLink(null)}>
           <div className="modal-box" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
             <div style={{textAlign:'center'}}>
-              <div style={{fontSize:'3rem',marginBottom:'0.75rem'}}>📤</div>
-              <h3 style={{margin:'0 0 0.5rem',fontFamily:'Fraunces,serif'}}>Lepas dari Folder?</h3>
-              <p style={{margin:'0 0 0.75rem',fontSize:'0.825rem',color:'var(--accent2)',background:'rgba(108,99,255,0.1)',border:'1px solid rgba(108,99,255,0.25)',borderRadius:8,padding:'0.5rem'}}>
-                ℹ️ Link hanya dilepas dari folder ini. Link tetap ada di halaman utama dan folder lain yang menyertakannya.
+              <div style={{fontSize:'3rem',marginBottom:'0.75rem'}}>🗑️</div>
+              <h3 style={{margin:'0 0 0.5rem',fontFamily:'Fraunces,serif'}}>Hapus Link?</h3>
+              <p style={{margin:'0 0 0.75rem',fontSize:'0.825rem',color:'var(--text2)'}}>
+                Tindakan ini tidak bisa dibatalkan.
               </p>
               <div style={{display:'flex',gap:'0.75rem'}}>
                 <button className="btn btn-secondary" style={{flex:1}} onClick={()=>setDeletingLink(null)}>Batal</button>
-                <button className="btn btn-primary" style={{flex:1}} onClick={handleDeleteConfirm}>Ya, Lepas</button>
+                <button className="btn btn-danger" style={{flex:1}} onClick={handleDeleteConfirm}>Ya, Hapus</button>
               </div>
             </div>
           </div>

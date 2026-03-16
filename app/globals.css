@@ -69,16 +69,6 @@ body {
   0%,100% { transform: translateY(0); }
   50%     { transform: translateY(-6px); }
 }
-.effect-rainbow {
-  background: linear-gradient(135deg,#667eea,#764ba2,#f093fb,#f5576c,#4facfe) !important;
-  background-size: 300% 300% !important;
-  animation: rainbowShift 4s ease infinite;
-}
-@keyframes rainbowShift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
 .effect-neon {
   box-shadow: 0 0 10px var(--accent3), 0 0 30px rgba(56,189,248,0.3) !important;
   border-color: var(--accent3) !important;

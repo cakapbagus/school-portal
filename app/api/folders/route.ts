@@ -15,16 +15,8 @@ const F_SELECT = `
 export async function GET() {
   await initDb();
   const db = getDb();
-
-  const folders = await db.execute(`
-    SELECT ${F_SELECT} FROM folders f ORDER BY f.f_position ASC, f.f_id ASC
-  `);
-
-  const memberships = await db.execute(`
-    SELECT fl_folder_id AS folder_id, fl_link_id AS link_id FROM folder_links
-  `);
-
-  return Response.json({ folders: folders.rows, memberships: memberships.rows });
+  const folders = await db.execute(`SELECT ${F_SELECT} FROM folders f ORDER BY f.f_position ASC, f.f_id ASC`);
+  return Response.json({ folders: folders.rows });
 }
 
 export async function POST(req: NextRequest) {
@@ -32,7 +24,7 @@ export async function POST(req: NextRequest) {
   const session = await getAdminSession();
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { name, description, icon, visible, link_ids, password } = await req.json();
+  const { name, description, icon, visible, password } = await req.json();
   if (!name?.trim()) return Response.json({ error: 'Nama wajib diisi' }, { status: 400 });
 
   let f_password_hash: string | null = null;
@@ -50,18 +42,8 @@ export async function POST(req: NextRequest) {
           VALUES (?, ?, ?, ?, ?, ?)`,
     args: [name.trim(), description || '', icon || '📁', visible !== false ? 1 : 0, f_position, f_password_hash],
   });
-  const folderId = Number(result.lastInsertRowid);
 
-  if (Array.isArray(link_ids) && link_ids.length > 0) {
-    for (let i = 0; i < link_ids.length; i++) {
-      await db.execute({
-        sql: `INSERT OR IGNORE INTO folder_links (fl_folder_id, fl_link_id, fl_position) VALUES (?, ?, ?)`,
-        args: [folderId, link_ids[i], i],
-      });
-    }
-  }
-
-  return Response.json({ id: folderId });
+  return Response.json({ id: Number(result.lastInsertRowid) });
 }
 
 export async function PUT(req: NextRequest) {
@@ -72,19 +54,14 @@ export async function PUT(req: NextRequest) {
   const body = await req.json();
   const db = getDb();
 
-  // Batch reorder folders
   if (body.positions) {
     for (const { id, position } of body.positions) {
-      await db.execute({
-        sql: `UPDATE folders SET f_position = ? WHERE f_id = ?`,
-        args: [position, id],
-      });
+      await db.execute({ sql: `UPDATE folders SET f_position = ? WHERE f_id = ?`, args: [position, id] });
     }
     return Response.json({ ok: true });
   }
 
-  // Update single folder
-  const { id, name, description, icon, visible, link_ids, password, clear_password } = body;
+  const { id, name, description, icon, visible, password, clear_password } = body;
 
   if (clear_password) {
     await db.execute({
@@ -105,16 +82,6 @@ export async function PUT(req: NextRequest) {
     });
   }
 
-  if (Array.isArray(link_ids)) {
-    await db.execute({ sql: `DELETE FROM folder_links WHERE fl_folder_id = ?`, args: [id] });
-    for (let i = 0; i < link_ids.length; i++) {
-      await db.execute({
-        sql: `INSERT OR IGNORE INTO folder_links (fl_folder_id, fl_link_id, fl_position) VALUES (?, ?, ?)`,
-        args: [id, link_ids[i], i],
-      });
-    }
-  }
-
   return Response.json({ ok: true });
 }
 
@@ -125,7 +92,8 @@ export async function DELETE(req: NextRequest) {
 
   const { id } = await req.json();
   const db = getDb();
-  await db.execute({ sql: `DELETE FROM folder_links WHERE fl_folder_id = ?`, args: [id] });
+  // Hapus semua link yang ada di folder ini sekaligus
+  await db.execute({ sql: `DELETE FROM links WHERE l_folder_id = ?`, args: [id] });
   await db.execute({ sql: `DELETE FROM folders WHERE f_id = ?`, args: [id] });
   return Response.json({ ok: true });
 }
