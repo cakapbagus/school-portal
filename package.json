@@ -1,6 +1,7 @@
 {
   "name": "school-portal",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "School portal like lynk.id with password protected links and folders.",
   "private": true,
   "scripts": {
     "dev": "next dev",

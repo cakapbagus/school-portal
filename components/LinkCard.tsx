@@ -22,6 +22,7 @@ export interface LinkItem {
 interface LinkCardProps {
   link: LinkItem;
   isAdmin: boolean;
+  tick?: number; // for force re-render when scheduler status changes
   onEdit: (link: LinkItem) => void;
   onDelete: (id: number, label: string) => void;
   onPasswordPrompt: (link: LinkItem) => void;

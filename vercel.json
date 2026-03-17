@@ -1,8 +1,5 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "framework": "nextjs",
-  "env": {
-    "JWT_SECRET": "@jwt_secret"
-  }
+  "framework": "nextjs"
 }

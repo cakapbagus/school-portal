@@ -26,6 +26,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [folder, setFolder] = useState<FolderInfo|null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [tick, setTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const [locked, setLocked] = useState(false);
   const [search, setSearch] = useState('');
@@ -74,6 +75,11 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   }, [id]); // eslint-disable-line
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t % 60 + 1), 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     function h(e: MouseEvent) {
@@ -283,7 +289,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                     🔍 {filteredLinks.length} hasil
                   </div>
                   {filteredLinks.map(link => (
-                    <SortableLinkCard key={link.id} link={link} isAdmin={isAdmin}
+                    <SortableLinkCard key={link.id} link={link} isAdmin={isAdmin} tick={tick}
                       onEdit={handleEditItem} onDelete={(id,label)=>setDeletingLink({id,label})} onPasswordPrompt={setPasswordLink} onFolderPick={isAdmin ? setFolderPickLink : undefined}/>
                   ))}
                 </>
@@ -299,13 +305,13 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext items={links.map(l=>l.id)} strategy={verticalListSortingStrategy}>
                       {links.map(link => (
-                        <SortableLinkCard key={link.id} link={link} isAdmin={true}
+                        <SortableLinkCard key={link.id} link={link} isAdmin={true} tick={tick}
                           onEdit={handleEditItem} onDelete={(id,label)=>setDeletingLink({id,label})} onPasswordPrompt={setPasswordLink} onFolderPick={setFolderPickLink}/>
                       ))}
                     </SortableContext>
                   </DndContext>
                 ) : displayLinks.map(link => (
-                  <SortableLinkCard key={link.id} link={link} isAdmin={false}
+                  <SortableLinkCard key={link.id} link={link} isAdmin={false} tick={tick}
                     onEdit={handleEditItem} onDelete={(id,label)=>setDeletingLink({id,label})} onPasswordPrompt={setPasswordLink}/>
                 ))}
 

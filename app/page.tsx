@@ -30,12 +30,11 @@ type PageItem =
   | { kind: 'folder'; id: string; position: number; data: FolderItem };
 
 export default function Home() {
-  const [links, setLinks] = useState<LinkItem[]>([]);
-  const [folders, setFolders] = useState<FolderItem[]>([]);
   const [items, setItems] = useState<PageItem[]>([]);
   const [settings, setSettings] = useState<SiteSettings>({ site_title:'Portal Sekolah', site_subtitle:'Link & Informasi Sekolah', site_logo:'', site_banner:'' });
   const [search, setSearch] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [tick, setTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -82,8 +81,6 @@ export default function Home() {
       const ld = await lr.json(); const ad = await ar.json();
       const ls: LinkItem[] = ld.links || [];
       const fs: FolderItem[] = ld.folders || [];
-      setLinks(ls);
-      setFolders(fs);
       setSettings(ld.settings || {});
       setIsAdmin(ad.isAdmin || false);
       setItems(buildItems(ls, fs));
@@ -92,6 +89,11 @@ export default function Home() {
   }, []); // eslint-disable-line
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t % 60 + 1), 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     function h(e:MouseEvent) {
@@ -340,7 +342,7 @@ export default function Home() {
                       <SortableFolderCard key={item.id} folder={item.data} isAdmin={isAdmin}
                         onEdit={handleEditFolder} onDelete={(id,name)=>setDeletingItem({id,label:name,kind:'folder'})} onPasswordPrompt={setPasswordFolder}/>
                     ) : (
-                      <SortableLinkCard key={item.id} link={item.data} isAdmin={isAdmin}
+                      <SortableLinkCard key={item.id} link={item.data} isAdmin={isAdmin} tick={tick}
                         onEdit={handleEditItem} onDelete={(id,label)=>setDeletingItem({id,label,kind:'link'})} onPasswordPrompt={setPasswordLink}/>
                     )
                   )}
@@ -364,7 +366,7 @@ export default function Home() {
                           <SortableFolderCard key={item.id} folder={item.data} isAdmin={true}
                             onEdit={handleEditFolder} onDelete={(id,name)=>setDeletingItem({id,label:name,kind:'folder'})} onPasswordPrompt={setPasswordFolder}/>
                         ) : (
-                          <SortableLinkCard key={item.id} link={item.data} isAdmin={true}
+                          <SortableLinkCard key={item.id} link={item.data} isAdmin={true} tick={tick}
                             onEdit={handleEditItem} onDelete={(id,label)=>setDeletingItem({id,label,kind:'link'})} onPasswordPrompt={setPasswordLink} onFolderPick={setFolderPickLink}/>
                         )
                       )}
@@ -376,7 +378,7 @@ export default function Home() {
                       <SortableFolderCard key={item.id} folder={item.data} isAdmin={false}
                         onEdit={handleEditFolder} onDelete={(id,name)=>setDeletingItem({id,label:name,kind:'folder'})} onPasswordPrompt={setPasswordFolder}/>
                     ) : (
-                      <SortableLinkCard key={item.id} link={item.data} isAdmin={false}
+                      <SortableLinkCard key={item.id} link={item.data} isAdmin={false} tick={tick}
                         onEdit={handleEditItem} onDelete={(id,label)=>setDeletingItem({id,label,kind:'link'})} onPasswordPrompt={setPasswordLink}/>
                     )
                   )
