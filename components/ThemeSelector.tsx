@@ -57,7 +57,7 @@ export default function ThemeSelector() {
         (e.currentTarget).style.transform = 'scale(1)';
       }}
     >
-      {isDark ? '☀︎' : '⏾'}
+      {isDark ? '🔆' : '🌑'}
     </button>
   );
 }

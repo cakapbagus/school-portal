@@ -324,7 +324,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                 {links.length === 0 && isAdmin && (
                   <div style={{ textAlign:'center', padding:'3rem 1rem', border:'2px dashed var(--border)', borderRadius:14, color:'var(--text2)' }}>
                     <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>🔗</div>
-                    <p style={{ margin:'0 0 1rem' }}>Use the <strong>✚ Add Item</strong> dropdown to get started!</p>
+                    <p style={{ margin:'0 0 1rem' }}>Use the <strong>➕ Add Item</strong> dropdown to get started!</p>
                   </div>
                 )}
               </>

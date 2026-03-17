@@ -75,9 +75,6 @@ export function FolderCardDisplay({ folder, isAdmin, onEdit, onDelete, onPasswor
             {hasPassword && (
               <span style={{ fontSize: '0.75rem', background: 'rgba(251,191,36,0.15)', color: 'var(--warning)', padding: '0.2rem 0.5rem', borderRadius: 999, border: '1px solid rgba(251,191,36,0.3)' }}>🔒</span>
             )}
-            <span style={{ fontSize: '0.75rem', background: 'rgba(108,99,255,0.12)', color: 'var(--accent2)', padding: '0.2rem 0.5rem', borderRadius: 999, border: '1px solid rgba(108,99,255,0.25)' }}>
-              Folder →
-            </span>
           </div>
         )}
         {isAdmin && (

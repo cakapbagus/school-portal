@@ -279,7 +279,7 @@ export default function Home() {
               {/* Dropdown Tambah Item */}
               <div ref={dropdownRef} style={{position:'relative'}}>
                 <button className="btn btn-primary btn-sm" onClick={()=>setShowDropdown(v=>!v)} style={{display:'flex',alignItems:'center',gap:'0.4rem',padding:'0.45rem 1rem',fontSize:'0.82rem'}}>
-                  ✚ Add Item
+                  ➕ Add Item
                   <span style={{fontSize:'0.55rem',display:'inline-block',transition:'transform 0.2s',transform:showDropdown?'rotate(180deg)':'none'}}>▼</span>
                 </button>
                 {showDropdown && (
@@ -393,7 +393,7 @@ export default function Home() {
                 {!loading && items.length === 0 && isAdmin && (
                   <div style={{textAlign:'center',padding:'3rem 1rem',border:'2px dashed var(--border)',borderRadius:14,color:'var(--text2)'}}>
                     <div style={{fontSize:'3rem',marginBottom:'0.75rem'}}>🔗</div>
-                    <p style={{margin:'0 0 1rem'}}>Use the <strong>✚ Add Item</strong> dropdown to get started!</p>
+                    <p style={{margin:'0 0 1rem'}}>Use the <strong>➕ Add Item</strong> dropdown to get started!</p>
                   </div>
                 )}
               </>
