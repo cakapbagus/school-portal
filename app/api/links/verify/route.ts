@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!hash) return Response.json({ url: row.l_url as string });
 
   const valid = await bcrypt.compare(password, hash);
-  if (!valid) return Response.json({ error: 'Password salah' }, { status: 401 });
+  if (!valid) return Response.json({ error: 'Wrong password' }, { status: 401 });
 
   return Response.json({ url: row.l_url as string });
 }

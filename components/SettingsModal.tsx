@@ -31,6 +31,7 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
   const [uploading, setUploading] = useState(false);
   const [savingPortal, setSavingPortal] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
 
   // Password change
   const [currentPw, setCurrentPw] = useState('');
@@ -51,9 +52,13 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
       fd.append('file', file);
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       const data = await res.json();
-      if (data.url) setLogo(data.url);
-      else onToast('Upload gagal', 'error');
-    } catch { onToast('Upload gagal', 'error'); }
+      if (data.url) {
+        if ((String(data.url).startsWith('/uploads/') && data.url !== originalLogo)) {
+          setUploadedFiles(v => [...v, data.url]);
+        }
+        setLogo(data.url);
+      } else onToast('Upload failed', 'error');
+    } catch { onToast('Upload failed', 'error'); }
     finally { setUploading(false); }
   }
 
@@ -66,9 +71,13 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
       fd.append('file', file);
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       const data = await res.json();
-      if (data.url) setBanner(data.url);
-      else onToast('Upload gagal', 'error');
-    } catch { onToast('Upload gagal', 'error'); }
+      if (data.url){
+        if ((String(data.url).startsWith('/uploads/') && data.url !== originalBanner)) {
+          setUploadedFiles(v => [...v, data.url]);
+        }
+        setBanner(data.url);
+      } else onToast('Upload failed', 'error');
+    } catch { onToast('Upload failed', 'error'); }
     finally { setUploading(false); }
   }
 
@@ -86,10 +95,18 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
   async function handleSavePortal() {
     setSavingPortal(true);
     try {
-      if (originalLogo !== logo && originalLogo.startsWith('/uploads/')) await deleteFile(originalLogo);
-      if (originalBanner !== banner && originalBanner.startsWith('/uploads/')) await deleteFile(originalBanner);
-      setOriginalLogo(logo);
-      setOriginalBanner(banner);
+      if (originalLogo.startsWith('/uploads/') && originalLogo !== logo) {
+        await deleteFile(originalLogo);
+      }
+      if (originalBanner.startsWith('/uploads/') && originalBanner !== banner) {
+        await deleteFile(originalBanner);
+      }
+      // Hapus file-file yang sudah di-upload selama sesi ini
+      for (const file of uploadedFiles) {
+        if (file !== logo && file !== banner) {
+          await deleteFile(file);
+        }
+      }
       const res = await fetch('/api/links', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -97,22 +114,34 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
       });
       if (!res.ok) throw new Error();
       onSave({ site_title: title, site_subtitle: subtitle, site_logo: logo, site_banner: banner });
-      onToast('Pengaturan disimpan', 'success');
+      onToast('Settings saved', 'success');
       onClose();
-    } catch { onToast('Gagal menyimpan', 'error'); }
+    } catch { onToast('Failed to save settings', 'error'); }
     finally { setSavingPortal(false); }
+  }
+
+  async function handleCancelPortal() {
+    setLogo(originalLogo);
+    setBanner(originalBanner);
+    // Hapus file baru yang sudah di-upload jika user cancel
+    for (const file of uploadedFiles) {
+      if (file !== originalLogo && file !== originalBanner) {
+        await deleteFile(file);
+      }
+    }
+    onClose();
   }
 
   async function handleChangePassword() {
     setPwError('');
     if (!currentPw || !newPw || !confirmPw) {
-      setPwError('Semua kolom wajib diisi'); return;
+      setPwError('All fields are required'); return;
     }
     if (newPw.length < 6) {
-      setPwError('Password baru minimal 6 karakter'); return;
+      setPwError('New password must be at least 6 characters'); return;
     }
     if (newPw !== confirmPw) {
-      setPwError('Konfirmasi password tidak cocok'); return;
+      setPwError('Password confirmation does not match'); return;
     }
     setSavingPw(true);
     try {
@@ -122,11 +151,11 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
         body: JSON.stringify({ current_password: currentPw, new_password: newPw }),
       });
       const data = await res.json();
-      if (!res.ok) { setPwError(data.error || 'Gagal mengubah password'); return; }
-      onToast('Password berhasil diubah', 'success');
+      if (!res.ok) { setPwError(data.error || 'Failed to change password'); return; }
+      onToast('Password successfully changed', 'success');
       setCurrentPw(''); setNewPw(''); setConfirmPw('');
       onClose();
-    } catch { setPwError('Terjadi kesalahan'); }
+    } catch { setPwError('An error occurred'); }
     finally { setSavingPw(false); }
   }
 
@@ -137,13 +166,13 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
 
   const pwStrength = (pw: string) => {
     if (!pw) return null;
-    if (pw.length < 6) return { label: 'Terlalu pendek', color: 'var(--danger)', width: '20%' };
-    if (pw.length < 8) return { label: 'Lemah', color: 'var(--warning)', width: '40%' };
+    if (pw.length < 6) return { label: 'Too weak', color: 'var(--danger)', width: '20%' };
+    if (pw.length < 8) return { label: 'Weak', color: 'var(--warning)', width: '40%' };
     const has = (r: RegExp) => r.test(pw);
     const score = [has(/[A-Z]/), has(/[0-9]/), has(/[^A-Za-z0-9]/)].filter(Boolean).length;
-    if (score === 0) return { label: 'Sedang', color: 'var(--warning)', width: '55%' };
-    if (score === 1) return { label: 'Kuat', color: 'var(--success)', width: '75%' };
-    return { label: 'Sangat Kuat', color: 'var(--success)', width: '100%' };
+    if (score === 0) return { label: 'Medium', color: 'var(--warning)', width: '55%' };
+    if (score === 1) return { label: 'Strong', color: 'var(--success)', width: '75%' };
+    return { label: 'Very Strong', color: 'var(--success)', width: '100%' };
   };
 
   const strength = pwStrength(newPw);
@@ -154,7 +183,7 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
 
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-          <h3 style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: '1.2rem' }}>⚙️ Pengaturan</h3>
+          <h3 style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: '1.2rem' }}>⚙️ Settings</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text2)', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
         </div>
 
@@ -182,17 +211,17 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
           <>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={fl}>Judul Portal</label>
-                <input className="field" value={title} onChange={e => setTitle(e.target.value)} placeholder="Portal Sekolah" />
+                <label style={fl}>Title</label>
+                <input className="field" value={title} onChange={e => setTitle(e.target.value)} placeholder="School Portal" />
               </div>
               <div>
-                <label style={fl}>Subjudul / Tagline</label>
-                <input className="field" value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="Link & Informasi Sekolah" />
+                <label style={fl}>Subtitle / Tagline</label>
+                <input className="field" value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="School Link & Information Portal" />
               </div>
               <div>
-                <label style={fl}>Logo Sekolah</label>
+                <label style={fl}>Logo</label>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <input className="field" type="text" placeholder="URL logo..." value={logo} onChange={e => setLogo(e.target.value)} style={{ flex: 1 }} />
+                  <input className="field" type="text" placeholder="URL logo or upload..." value={logo} onChange={e => setLogo(e.target.value)} style={{ flex: 1 }} />
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
                     {uploading ? '...' : '📁'}
                   </button>
@@ -204,10 +233,10 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
                     <img src={logo} alt="" style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'contain', border: '1px solid var(--border)', background: 'var(--bg3)', padding: 4 }} />
                     <button
                       type="button"
-                      onClick={() => { deleteFile(logo); setLogo(''); }}
+                      onClick={() => setLogo('')}
                       style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--danger)', fontFamily: 'Plus Jakarta Sans, sans-serif', padding: '0.25rem 0.5rem', borderRadius: 6 }}
                     >
-                      🗑️ Hapus Logo
+                      🗑️ Delete Logo
                     </button>
                   </div>
                 )}
@@ -216,10 +245,10 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
               <div>
                 <label style={fl}>Banner / Header Image</label>
                 <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', color: 'var(--text2)' }}>
-                  Gambar lebar yang tampil di atas portal (rekomendasi: 1200×400px)
+                  Displayed above the logo (recommended: 1200×400px)
                 </p>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <input className="field" type="text" placeholder="URL banner atau upload..." value={banner} onChange={e => setBanner(e.target.value)} style={{ flex: 1 }} />
+                  <input className="field" type="text" placeholder="URL banner or upload..." value={banner} onChange={e => setBanner(e.target.value)} style={{ flex: 1 }} />
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => bannerFileRef.current?.click()} disabled={uploading}>
                     {uploading ? '...' : '📁'}
                   </button>
@@ -229,18 +258,18 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
                   <div style={{ marginTop: '0.5rem' }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={banner} alt="" style={{ width: '100%', maxHeight: 100, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />
-                    <button type="button" onClick={() => { deleteFile(banner); setBanner(''); }}
+                    <button type="button" onClick={() => setBanner('')}
                       style={{ marginTop: '0.35rem', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--danger)', fontFamily: 'Plus Jakarta Sans, sans-serif', padding: '0.25rem 0.5rem', borderRadius: 6 }}>
-                      🗑️ Hapus Banner
+                      🗑️ Delete Banner
                     </button>
                   </div>
                 )}
               </div>
             </div>
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Batal</button>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={handleCancelPortal}>Cancel</button>
               <button className="btn btn-primary" style={{ flex: 2 }} onClick={handleSavePortal} disabled={savingPortal}>
-                {savingPortal ? 'Menyimpan...' : '💾 Simpan'}
+                {savingPortal ? 'Saving...' : '💾 Save'}
               </button>
             </div>
           </>
@@ -253,12 +282,12 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
 
               {/* Current password */}
               <div>
-                <label style={fl}>Password Saat Ini</label>
+                <label style={fl}>Current Password</label>
                 <div style={{ position: 'relative' }}>
                   <input
                     className="field"
                     type={showCurrent ? 'text' : 'password'}
-                    placeholder="Masukkan password saat ini..."
+                    placeholder="Enter current password..."
                     value={currentPw}
                     onChange={e => { setCurrentPw(e.target.value); setPwError(''); }}
                     style={{ paddingRight: '2.5rem' }}
@@ -275,12 +304,12 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
 
               {/* New password */}
               <div>
-                <label style={fl}>Password Baru</label>
+                <label style={fl}>New Password</label>
                 <div style={{ position: 'relative' }}>
                   <input
                     className="field"
                     type={showNew ? 'text' : 'password'}
-                    placeholder="Minimal 6 karakter..."
+                    placeholder="Minimum 6 characters..."
                     value={newPw}
                     onChange={e => { setNewPw(e.target.value); setPwError(''); }}
                     style={{ paddingRight: '2.5rem' }}
@@ -304,12 +333,12 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
 
               {/* Confirm new password */}
               <div>
-                <label style={fl}>Konfirmasi Password Baru</label>
+                <label style={fl}>Confirm New Password</label>
                 <div style={{ position: 'relative' }}>
                   <input
                     className="field"
                     type={showConfirm ? 'text' : 'password'}
-                    placeholder="Ulangi password baru..."
+                    placeholder="Repeat new password..."
                     value={confirmPw}
                     onChange={e => { setConfirmPw(e.target.value); setPwError(''); }}
                     style={{
@@ -340,9 +369,9 @@ export default function SettingsModal({ settings, onClose, onSave, onToast }: Se
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Batal</button>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
               <button className="btn btn-primary" style={{ flex: 2 }} onClick={handleChangePassword} disabled={savingPw}>
-                {savingPw ? 'Menyimpan...' : '🔑 Ubah Password'}
+                {savingPw ? 'Saving...' : '🔑 Change Password'}
               </button>
             </div>
           </>

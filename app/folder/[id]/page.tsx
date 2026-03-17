@@ -14,6 +14,7 @@ import SeparatorFormModal from '@/components/SeparatorFormModal';
 import PasswordModal from '@/components/PasswordModal';
 import Toast from '@/components/Toast';
 import FolderPasswordModal from '@/components/FolderPasswordModal';
+import FolderPickerModal from '@/components/FolderPickerModal';
 import ThemeSelector from '@/components/ThemeSelector';
 import ServerClock from '@/components/ServerClock';
 
@@ -35,6 +36,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   const [editingSeparator, setEditingSeparator] = useState<{id:number;label:string;visible:boolean}|null>(null);
   const [deletingLink, setDeletingLink] = useState<{id:number;label:string}|null>(null);
   const [passwordLink, setPasswordLink] = useState<LinkItem|null>(null);
+  const [folderPickLink, setFolderPickLink] = useState<LinkItem|null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [tc, setTc] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -94,6 +96,26 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     } catch { showToast('Gagal simpan posisi', 'error'); fetchData(); }
   }
 
+  async function handleMoveToFolder(folderId: number | null) {
+    if (!folderPickLink) return;
+    try {
+      await fetch('/api/links', { method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ id: folderPickLink.id, move_to_folder: folderId }) });
+      showToast('Link dipindahkan', 'success');
+      setFolderPickLink(null); fetchData();
+    } catch { showToast('Gagal memindahkan', 'error'); }
+  }
+
+  async function handleCopyToFolder(folderId: number | null) {
+    if (!folderPickLink) return;
+    try {
+      await fetch('/api/links', { method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ id: folderPickLink.id, copy_to_folder: folderId }) });
+      showToast('Link disalin', 'success');
+      setFolderPickLink(null); fetchData();
+    } catch { showToast('Gagal menyalin', 'error'); }
+  }
+
   async function handleDeleteConfirm() {
     if (!deletingLink) return;
     try {
@@ -149,8 +171,8 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   }
 
   const dropdownItems = [
-    { icon:'🔗', label:'Link / URL', desc:'Tambah tautan', onClick:()=>{setShowDropdown(false);setShowAddLink(true);} },
-    { icon:'➖', label:'Separator', desc:'Garis pemisah', onClick:()=>{setShowDropdown(false);setShowAddSeparator(true);}, divider:true },
+    { icon:'🔗', label:'Link / URL', desc:'Add link', onClick:()=>{setShowDropdown(false);setShowAddLink(true);} },
+    { icon:'➖', label:'Separator', desc:'Breakline', onClick:()=>{setShowDropdown(false);setShowAddSeparator(true);}, divider:true },
   ];
 
   return (
@@ -168,7 +190,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
           }}
             onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.color='var(--text)';(e.currentTarget as HTMLElement).style.borderColor='var(--accent)';}}
             onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.color='var(--text2)';(e.currentTarget as HTMLElement).style.borderColor='var(--border)';}}>
-            ← Kembali
+            ← Back
           </a>
         </div>
 
@@ -192,13 +214,13 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.6rem', marginTop:'0.75rem' }}>
               <div style={{ display:'inline-flex', alignItems:'center', gap:'0.4rem', background:'rgba(108,99,255,0.15)', border:'1px solid rgba(108,99,255,0.3)', borderRadius:999, padding:'0.3rem 0.8rem', fontSize:'0.75rem', color:'var(--accent2)' }}>
                 <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--success)', display:'inline-block' }}/>
-                Mode Admin — Seret ⠿ untuk atur posisi
+                Admin Mode — Drag and drop ⠿ for reordering
               </div>
               {/* Dropdown tambah item — di tengah seperti halaman root */}
               <div ref={dropdownRef} style={{ position:'relative' }}>
                 <button className="btn btn-primary btn-sm" onClick={() => setShowDropdown(v => !v)}
                   style={{ display:'flex', alignItems:'center', gap:'0.4rem', padding:'0.45rem 1rem', fontSize:'0.82rem' }}>
-                  ➕ Tambah Item
+                  ➕ Add Item
                   <span style={{ fontSize:'0.55rem', display:'inline-block', transition:'transform 0.2s', transform:showDropdown?'rotate(180deg)':'none' }}>▼</span>
                 </button>
                 {showDropdown && (
@@ -235,7 +257,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
           <input
             className="field"
             type="text"
-            placeholder="Cari link di folder ini..."
+            placeholder="Search links in this folder..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ paddingLeft:'2.25rem', borderRadius:999, fontSize:'0.875rem' }}
@@ -249,7 +271,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
         {loading ? (
           <div style={{ textAlign:'center', padding:'3rem', color:'var(--text2)' }}>
             <div style={{ fontSize:'1.5rem', marginBottom:'0.5rem', animation:'spin 1s linear infinite', display:'inline-block' }}>⟳</div>
-            <p style={{ margin:0 }}>Memuat...</p>
+            <p style={{ margin:0 }}>Loading...</p>
           </div>
         ) : (
           <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
@@ -262,7 +284,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                   </div>
                   {filteredLinks.map(link => (
                     <SortableLinkCard key={link.id} link={link} isAdmin={isAdmin}
-                      onEdit={handleEditItem} onDelete={(id,label)=>setDeletingLink({id,label})} onPasswordPrompt={setPasswordLink}/>
+                      onEdit={handleEditItem} onDelete={(id,label)=>setDeletingLink({id,label})} onPasswordPrompt={setPasswordLink} onFolderPick={isAdmin ? setFolderPickLink : undefined}/>
                   ))}
                 </>
               ) : (
@@ -278,7 +300,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                     <SortableContext items={links.map(l=>l.id)} strategy={verticalListSortingStrategy}>
                       {links.map(link => (
                         <SortableLinkCard key={link.id} link={link} isAdmin={true}
-                          onEdit={handleEditItem} onDelete={(id,label)=>setDeletingLink({id,label})} onPasswordPrompt={setPasswordLink}/>
+                          onEdit={handleEditItem} onDelete={(id,label)=>setDeletingLink({id,label})} onPasswordPrompt={setPasswordLink} onFolderPick={setFolderPickLink}/>
                       ))}
                     </SortableContext>
                   </DndContext>
@@ -340,7 +362,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                 Tindakan ini tidak bisa dibatalkan.
               </p>
               <div style={{display:'flex',gap:'0.75rem'}}>
-                <button className="btn btn-secondary" style={{flex:1}} onClick={()=>setDeletingLink(null)}>Batal</button>
+                <button className="btn btn-secondary" style={{flex:1}} onClick={()=>setDeletingLink(null)}>Cancel</button>
                 <button className="btn btn-danger" style={{flex:1}} onClick={handleDeleteConfirm}>Ya, Hapus</button>
               </div>
             </div>
@@ -350,6 +372,15 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
 
       {passwordLink && <PasswordModal linkId={passwordLink.id} linkLabel={passwordLink.label.replace(/<[^>]+>/g,'')} onClose={()=>setPasswordLink(null)} onSuccess={url=>{setPasswordLink(null);window.open(url,'_blank','noopener,noreferrer');}}/>}
       {toasts.map(t=><Toast key={t.id} message={t.msg} type={t.type} onClose={()=>setToasts(p=>p.filter(x=>x.id!==t.id))}/>)}
+      {folderPickLink && (
+        <FolderPickerModal
+          linkLabel={folderPickLink.label}
+          currentFolderId={parseInt(id)}
+          onClose={() => setFolderPickLink(null)}
+          onMove={handleMoveToFolder}
+          onCopy={handleCopyToFolder}
+        />
+      )}
       <ServerClock/>
       <ThemeSelector/>
       <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}} @keyframes dropdownIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>

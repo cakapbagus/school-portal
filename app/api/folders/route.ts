@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { name, description, icon, visible, password } = await req.json();
-  if (!name?.trim()) return Response.json({ error: 'Nama wajib diisi' }, { status: 400 });
+  if (!name?.trim()) return Response.json({ error: 'Name is required' }, { status: 400 });
 
   let f_password_hash: string | null = null;
   if (password?.trim()) {

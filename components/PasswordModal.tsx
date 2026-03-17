@@ -29,12 +29,12 @@ export default function PasswordModal({ linkId, linkLabel, onClose, onSuccess }:
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Password salah');
+        setError(data.error || 'Wrong password');
       } else {
         onSuccess(data.url);
       }
     } catch {
-      setError('Terjadi kesalahan');
+      setError('An error occurred');
     } finally {
       setLoading(false);
     }
@@ -52,10 +52,10 @@ export default function PasswordModal({ linkId, linkLabel, onClose, onSuccess }:
             fontSize: 24
           }}>🔒</div>
           <h3 style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: '1.25rem', color: 'var(--text)' }}>
-            Link Terkunci
+            Locked Link
           </h3>
           <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--text2)' }}>
-            Masukkan password untuk membuka
+            Enter password to open
           </p>
           <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--accent2)', fontStyle: 'italic' }}>
             &ldquo;{linkLabel}&rdquo;
@@ -79,10 +79,10 @@ export default function PasswordModal({ linkId, linkLabel, onClose, onSuccess }:
           )}
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>
-              Batal
+              Cancel
             </button>
             <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={loading}>
-              {loading ? '...' : 'Buka'}
+              {loading ? '...' : 'Open'}
             </button>
           </div>
         </form>

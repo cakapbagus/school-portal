@@ -66,8 +66,8 @@ export async function initDb() {
     const bcrypt = await import('bcryptjs');
     const hash = await bcrypt.hash('admin123', 10);
     await db.execute({ sql: `INSERT INTO settings (s_key, s_value) VALUES ('admin_password', ?)`, args: [hash] });
-    await db.execute({ sql: `INSERT OR IGNORE INTO settings (s_key, s_value) VALUES ('site_title', ?)`,    args: ['Portal Sekolah'] });
-    await db.execute({ sql: `INSERT OR IGNORE INTO settings (s_key, s_value) VALUES ('site_subtitle', ?)`, args: ['Link & Informasi Sekolah'] });
+    await db.execute({ sql: `INSERT OR IGNORE INTO settings (s_key, s_value) VALUES ('site_title', ?)`,    args: ['School Portal'] });
+    await db.execute({ sql: `INSERT OR IGNORE INTO settings (s_key, s_value) VALUES ('site_subtitle', ?)`, args: ['School Link & Information Portal'] });
     await db.execute({ sql: `INSERT OR IGNORE INTO settings (s_key, s_value) VALUES ('site_logo', ?)`,     args: [''] });
     await db.execute({ sql: `INSERT OR IGNORE INTO settings (s_key, s_value) VALUES ('site_banner', ?)`,   args: [''] });
   }

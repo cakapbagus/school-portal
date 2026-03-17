@@ -100,13 +100,13 @@ export default function RichEditor({ value, onChange, placeholder }: RichEditorP
         <button type="button" style={btnBase} onMouseDown={e => { e.preventDefault(); cmd('underline'); }} title="Underline"><u>U</u></button>
         <div style={divider} />
         {/* Alignment */}
-        <button type="button" style={btnBase} onMouseDown={e => { e.preventDefault(); cmd('justifyLeft'); }} title="Rata kiri">
+        <button type="button" style={btnBase} onMouseDown={e => { e.preventDefault(); cmd('justifyLeft'); }} title="Left">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="2" width="12" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="8" height="1.5" rx="0.75"/><rect x="1" y="9" width="12" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="6" height="1.5" rx="0.75"/></svg>
         </button>
-        <button type="button" style={btnBase} onMouseDown={e => { e.preventDefault(); cmd('justifyCenter'); }} title="Tengah">
+        <button type="button" style={btnBase} onMouseDown={e => { e.preventDefault(); cmd('justifyCenter'); }} title="Center">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="2" width="12" height="1.5" rx="0.75"/><rect x="3" y="5.5" width="8" height="1.5" rx="0.75"/><rect x="1" y="9" width="12" height="1.5" rx="0.75"/><rect x="4" y="12.5" width="6" height="1.5" rx="0.75"/></svg>
         </button>
-        <button type="button" style={btnBase} onMouseDown={e => { e.preventDefault(); cmd('justifyRight'); }} title="Rata kanan">
+        <button type="button" style={btnBase} onMouseDown={e => { e.preventDefault(); cmd('justifyRight'); }} title="Right">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="2" width="12" height="1.5" rx="0.75"/><rect x="5" y="5.5" width="8" height="1.5" rx="0.75"/><rect x="1" y="9" width="12" height="1.5" rx="0.75"/><rect x="7" y="12.5" width="6" height="1.5" rx="0.75"/></svg>
         </button>
         <div style={divider} />
@@ -120,7 +120,7 @@ export default function RichEditor({ value, onChange, placeholder }: RichEditorP
               saveSelection(); // save before picker opens
               setShowColorPicker(v => !v);
             }}
-            title="Warna teks"
+            title="Text Color"
           >
             <span style={{ fontSize: '0.85rem', color: 'var(--text)' }}>A</span>
             <span style={{ width: 10, height: 4, borderRadius: 2, background: customColor, display: 'block' }} />
@@ -163,7 +163,7 @@ export default function RichEditor({ value, onChange, placeholder }: RichEditorP
                   width: 24, height: 24, borderRadius: 5, background: customColor,
                   border: '1px solid var(--border)', flexShrink: 0,
                 }} />
-                <span style={{ fontSize: '0.72rem', color: 'var(--text2)', flex: 1 }}>Kustom:</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text2)', flex: 1 }}>Custom:</span>
                 <input
                   type="color"
                   value={customColor}
@@ -178,14 +178,14 @@ export default function RichEditor({ value, onChange, placeholder }: RichEditorP
                     width: 36, height: 24, borderRadius: 5, border: '1px solid var(--border)',
                     cursor: 'pointer', padding: 1, background: 'var(--bg3)',
                   }}
-                  title="Pilih warna bebas"
+                  title="Choose Custom Color"
                 />
               </div>
             </div>
           )}
         </div>
         <div style={divider} />
-        <button type="button" style={{ ...btnBase, color: 'var(--text2)', fontSize: '0.7rem' }} onMouseDown={e => { e.preventDefault(); cmd('removeFormat'); }} title="Hapus format">Tx</button>
+        <button type="button" style={{ ...btnBase, color: 'var(--text2)', fontSize: '0.7rem' }} onMouseDown={e => { e.preventDefault(); cmd('removeFormat'); }} title="Remove Format">Tx</button>
       </div>
 
       <div

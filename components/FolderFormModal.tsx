@@ -34,7 +34,7 @@ export default function FolderFormModal({ folder, onClose, onSave, onToast }: Fo
   const [activeTab, setActiveTab] = useState<Tab>('info');
 
   async function handleSave() {
-    if (!name.trim()) { onToast('Nama folder wajib diisi', 'error'); return; }
+    if (!name.trim()) { onToast('Folder name is required', 'error'); return; }
     setSaving(true);
     try {
       const body: Record<string, unknown> = {
@@ -52,9 +52,9 @@ export default function FolderFormModal({ folder, onClose, onSave, onToast }: Fo
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
-      onToast(isEdit ? 'Folder diperbarui' : 'Folder ditambahkan', 'success');
+      onToast(isEdit ? 'Folder updated' : 'Folder added', 'success');
       onSave();
-    } catch { onToast('Gagal menyimpan', 'error'); }
+    } catch { onToast('Failed to save folder', 'error'); }
     finally { setSaving(false); }
   }
 
@@ -80,7 +80,7 @@ export default function FolderFormModal({ folder, onClose, onSave, onToast }: Fo
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <h3 style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: '1.2rem' }}>
-            {isEdit ? '✏️ Edit Folder' : '📁 Buat Folder'}
+            {isEdit ? '✏️ Edit Folder' : '📁 Create Folder'}
           </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text2)', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
         </div>
@@ -100,7 +100,7 @@ export default function FolderFormModal({ folder, onClose, onSave, onToast }: Fo
         {activeTab === 'info' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div>
-              <label style={fl}>Ikon Folder</label>
+              <label style={fl}>Folder Icon</label>
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', background: 'var(--bg3)', borderRadius: 10, padding: '0.6rem', border: '1px solid var(--border)' }}>
                 {FOLDER_ICONS.map(ic => (
                   <button key={ic} type="button" onClick={() => setIcon(ic)} style={{
@@ -116,18 +116,18 @@ export default function FolderFormModal({ folder, onClose, onSave, onToast }: Fo
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'var(--bg3)', borderRadius: 10, border: '1px solid var(--border)' }}>
               <span style={{ fontSize: '2rem' }}>{icon}</span>
               <div>
-                <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{name || 'Nama Folder'}</div>
+                <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{name || 'Folder Name'}</div>
                 {description && <div style={{ fontSize: '0.78rem', color: 'var(--text2)', marginTop: 2 }}>{description}</div>}
-                <div style={{ fontSize: '0.72rem', color: 'var(--accent2)', marginTop: 2 }}>{(isEdit && folder?.has_password === 1 && !clearPassword) ? '🔒 Berpassword' : ''}</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--accent2)', marginTop: 2 }}>{(isEdit && folder?.has_password === 1 && !clearPassword) ? '🔒 Password Protected' : ''}</div>
               </div>
             </div>
             <div>
-              <label style={fl}>Nama Folder *</label>
-              <input className="field" placeholder="Contoh: Menu Utama..." value={name} onChange={e => setName(e.target.value)} />
+              <label style={fl}>Folder Name *</label>
+              <input className="field" placeholder="Example: Main Menu..." value={name} onChange={e => setName(e.target.value)} />
             </div>
             <div>
-              <label style={fl}>Deskripsi (opsional)</label>
-              <input className="field" placeholder="Keterangan singkat..." value={description} onChange={e => setDescription(e.target.value)} />
+              <label style={fl}>Description (optional)</label>
+              <input className="field" placeholder="Brief description..." value={description} onChange={e => setDescription(e.target.value)} />
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
               <input type="checkbox" checked={visible} onChange={e => setVisible(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
@@ -140,34 +140,34 @@ export default function FolderFormModal({ folder, onClose, onSave, onToast }: Fo
         {activeTab === 'password' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ padding: '0.75rem 1rem', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 10, fontSize: '0.825rem', color: 'var(--text2)', lineHeight: 1.5 }}>
-              Jika diisi, pengunjung harus memasukkan password sebelum bisa melihat isi folder. Password tersimpan selama sesi tab aktif.
+              If set, visitors must enter a password before they can view the folder's contents. The password is stored for the duration of the active tab session.
             </div>
 
             {isEdit && folder?.has_password === 1 && !clearPassword && (
               <div style={{ padding: '0.6rem 0.875rem', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 8, fontSize: '0.82rem', color: 'var(--warning)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>🔒 Password sudah diset</span>
+                <span>🔒 Password already set</span>
                 <button type="button" onClick={() => { setClearPassword(true); setPassword(''); }}
-                  style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem' }}>Hapus Password</button>
+                  style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem' }}>Delete Password</button>
               </div>
             )}
 
             {isEdit && clearPassword && (
               <div style={{ padding: '0.6rem 0.875rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, fontSize: '0.82rem', color: 'var(--danger)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Password akan dihapus saat disimpan</span>
+                <span>Password will be deleted when saved</span>
                 <button type="button" onClick={() => setClearPassword(false)}
-                  style={{ background: 'none', border: 'none', color: 'var(--text2)', cursor: 'pointer', fontSize: '0.8rem' }}>Batal</button>
+                  style={{ background: 'none', border: 'none', color: 'var(--text2)', cursor: 'pointer', fontSize: '0.8rem' }}>Cancel</button>
               </div>
             )}
 
             <div>
-              <label style={fl}>{isEdit ? 'Ganti Password' : 'Password Folder'}</label>
+              <label style={fl}>{isEdit ? 'Change Password' : 'Folder Password'}</label>
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPw ? 'text' : 'password'}
                   className="field"
-                  placeholder={isEdit ? 'Isi untuk ganti (kosongkan = tidak berubah)' : 'Kosongkan jika tanpa password'}
+                  placeholder={isEdit ? 'Fill to change (leave blank = no change)' : 'Leave blank if no password'}
                   value={password}
-                  onChange={e => { setPassword(e.target.value); if (clearPassword) setClearPassword(false); }}
+                  onChange={e => setPassword(e.target.value)}
                   disabled={clearPassword}
                   style={{ paddingRight: '2.5rem' }}
                 />
@@ -182,9 +182,9 @@ export default function FolderFormModal({ folder, onClose, onSave, onToast }: Fo
 
         {/* Footer */}
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-          <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Batal</button>
+          <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" style={{ flex: 2 }} onClick={handleSave} disabled={saving}>
-            {saving ? 'Menyimpan...' : (isEdit ? '💾 Simpan Perubahan' : '✅ Buat Folder')}
+            {saving ? 'Saving...' : (isEdit ? '💾 Save Changes' : '✅ Create Folder')}
           </button>
         </div>
       </div>

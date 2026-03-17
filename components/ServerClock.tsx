@@ -27,7 +27,7 @@ export default function ServerClock() {
 
   const pad = (n: number) => String(n).padStart(2, '0');
 
-  const hari = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'][now.getDay()];
+  const hari = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()];
   const tgl  = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()}`;
   const jam  = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 

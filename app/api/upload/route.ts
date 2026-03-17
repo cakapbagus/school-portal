@@ -45,6 +45,6 @@ export async function DELETE(req: NextRequest) {
     }
     return Response.json({ ok: true });
   } catch {
-    return Response.json({ error: 'Gagal menghapus file' }, { status: 500 });
+    return Response.json({ error: 'Failed to delete file' }, { status: 500 });
   }
 }

@@ -28,10 +28,10 @@ export default function SeparatorFormModal({ separator, folderId, onClose, onSav
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
-      onToast(isEdit ? 'Separator diperbarui' : 'Separator ditambahkan', 'success');
+      onToast(isEdit ? 'Separator updated' : 'Separator added', 'success');
       onSave();
     } catch {
-      onToast('Gagal menyimpan', 'error');
+      onToast('Failed to save separator', 'error');
     } finally {
       setSaving(false);
     }
@@ -68,15 +68,15 @@ export default function SeparatorFormModal({ separator, folderId, onClose, onSav
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
-            <label style={fieldLabel}>Label (opsional)</label>
+            <label style={fieldLabel}>Label (optional)</label>
             <input
               className="field"
-              placeholder="Contoh: Menu Utama, Tautan Penting..."
+              placeholder="Example: Main Menu, Important Links..."
               value={label}
               onChange={e => setLabel(e.target.value)}
             />
             <p style={{ margin: '0.3rem 0 0', fontSize: '0.75rem', color: 'var(--text2)' }}>
-              Kosongkan untuk garis pemisah tanpa teks
+              Leave blank for a separator line without text
             </p>
           </div>
 
@@ -84,15 +84,15 @@ export default function SeparatorFormModal({ separator, folderId, onClose, onSav
             <input type="checkbox" checked={visible} onChange={e => setVisible(e.target.checked)}
               style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
             <span style={{ fontSize: '0.875rem' }}>
-              <strong>Tampilkan</strong> <span style={{ color: 'var(--text2)' }}>(aktif & terlihat)</span>
+              <strong>Show</strong> <span style={{ color: 'var(--text2)' }}>(active & visible)</span>
             </span>
           </label>
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-          <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Batal</button>
+          <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" style={{ flex: 2 }} onClick={handleSave} disabled={saving}>
-            {saving ? 'Menyimpan...' : (isEdit ? '💾 Simpan' : '✅ Tambah Separator')}
+            {saving ? 'Saving...' : (isEdit ? '💾 Save' : '✅ Add Separator')}
           </button>
         </div>
       </div>

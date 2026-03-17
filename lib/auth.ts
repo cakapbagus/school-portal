@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
 const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'school-portal-secret-2024-change-in-production'
+  process.env.JWT_SECRET || 'school-portal-secret-2026-change-in-production'
 );
 
 export async function signToken(payload: Record<string, unknown>) {

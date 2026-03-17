@@ -32,14 +32,14 @@ export default function FolderPasswordModal({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Password salah');
+        setError(data.error || 'Wrong password');
       } else {
-        // Simpan unlock status di sessionStorage
+        // Save unlock status di sessionStorage
         sessionStorage.setItem(`folder_unlocked_${folderId}`, '1');
         onSuccess();
       }
     } catch {
-      setError('Terjadi kesalahan');
+      setError('An error occurred');
     } finally {
       setLoading(false);
     }
@@ -67,10 +67,10 @@ export default function FolderPasswordModal({
             }}>🔒</span>
           </div>
           <h3 style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: '1.2rem' }}>
-            Folder Terkunci
+            Locked Folder
           </h3>
           <p style={{ margin: '0.4rem 0 0', fontSize: '0.875rem', color: 'var(--text2)' }}>
-            Masukkan password untuk membuka folder
+            Enter password to unlock folder
           </p>
           <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--accent2)', fontStyle: 'italic' }}>
             &ldquo;{folderName}&rdquo;
@@ -94,16 +94,16 @@ export default function FolderPasswordModal({
           )}
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>
-              Batal
+              Cancel
             </button>
             <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={loading}>
-              {loading ? '...' : 'Buka'}
+              {loading ? '...' : 'Open Folder'}
             </button>
           </div>
         </form>
 
         <p style={{ margin: '0.75rem 0 0', fontSize: '0.72rem', color: 'var(--text2)', textAlign: 'center' }}>
-          Sesi akan berakhir saat tab ditutup
+          Session will end when the tab is closed
         </p>
       </div>
     </div>

@@ -153,6 +153,41 @@ export async function PUT(req: NextRequest) {
     return Response.json({ ok: true });
   }
 
+  // Pindah link ke folder lain (ubah l_folder_id)
+  if (body.move_to_folder !== undefined) {
+    const targetFolderId = body.move_to_folder === null ? null : parseInt(body.move_to_folder);
+    // Posisi terakhir di target
+    const maxPos = targetFolderId !== null
+      ? await db.execute({ sql: `SELECT COALESCE(MAX(l_position), -1) AS m FROM links WHERE l_folder_id = ?`, args: [targetFolderId] })
+      : await db.execute(`SELECT COALESCE(MAX(l_position), -1) AS m FROM links WHERE l_folder_id IS NULL`);
+    const newPos = (maxPos.rows[0].m as number) + 1;
+    await db.execute({
+      sql: `UPDATE links SET l_folder_id = ?, l_position = ? WHERE l_id = ?`,
+      args: [targetFolderId, newPos, body.id],
+    });
+    return Response.json({ ok: true });
+  }
+
+  // Salin link ke folder lain (buat record baru dengan folder_id berbeda)
+  if (body.copy_to_folder !== undefined) {
+    const targetFolderId = body.copy_to_folder === null ? null : parseInt(body.copy_to_folder);
+    const orig = await db.execute({ sql: `SELECT * FROM links WHERE l_id = ?`, args: [body.id] });
+    if (orig.rows.length === 0) return Response.json({ error: 'Link tidak ditemukan' }, { status: 404 });
+    const r = orig.rows[0];
+    const maxPos = targetFolderId !== null
+      ? await db.execute({ sql: `SELECT COALESCE(MAX(l_position), -1) AS m FROM links WHERE l_folder_id = ?`, args: [targetFolderId] })
+      : await db.execute(`SELECT COALESCE(MAX(l_position), -1) AS m FROM links WHERE l_folder_id IS NULL`);
+    const newPos = (maxPos.rows[0].m as number) + 1;
+    const result = await db.execute({
+      sql: `INSERT INTO links (l_folder_id, l_type, l_label, l_url, l_image_url, l_effect, l_bg_color,
+              l_visible, l_position, l_password_hash, l_scheduler_enabled, l_scheduler_start, l_scheduler_end)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      args: [targetFolderId, r.l_type, r.l_label, r.l_url, r.l_image_url, r.l_effect, r.l_bg_color,
+             r.l_visible, newPos, r.l_password_hash, r.l_scheduler_enabled, r.l_scheduler_start, r.l_scheduler_end],
+    });
+    return Response.json({ id: Number(result.lastInsertRowid) });
+  }
+
   // Update single link
   const {
     id, type = 'link', label, url, image_url, effect, bg_color,

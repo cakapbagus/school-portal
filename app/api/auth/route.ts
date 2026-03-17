@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
 
   const hash = row.rows[0].s_value as string;
   const valid = await bcrypt.compare(password, hash);
-  if (!valid) return Response.json({ error: 'Password salah' }, { status: 401 });
+  if (!valid) return Response.json({ error: 'Wrong password' }, { status: 401 });
 
   const token = await signToken({ role: 'admin' });
   const cookieStore = await cookies();

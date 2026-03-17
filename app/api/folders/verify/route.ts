@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   });
 
   if (result.rows.length === 0)
-    return Response.json({ error: 'Folder tidak ditemukan' }, { status: 404 });
+    return Response.json({ error: 'Folder not found' }, { status: 404 });
 
   const row = result.rows[0];
   const hash = row.f_password_hash as string;
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!hash) return Response.json({ ok: true });
 
   const valid = await bcrypt.compare(password, hash);
-  if (!valid) return Response.json({ error: 'Password salah' }, { status: 401 });
+  if (!valid) return Response.json({ error: 'Wrong password' }, { status: 401 });
 
   return Response.json({ ok: true });
 }

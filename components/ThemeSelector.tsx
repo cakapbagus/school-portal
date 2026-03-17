@@ -29,7 +29,7 @@ export default function ThemeSelector() {
   return (
     <button
       onClick={toggle}
-      title={isDark ? 'Ganti ke Light Mode' : 'Ganti ke Dark Mode'}
+      title={isDark ? 'Change to Light Mode' : 'Change to Dark Mode'}
       style={{
         position: 'fixed',
         bottom: '1.25rem',

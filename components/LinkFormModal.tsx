@@ -25,12 +25,12 @@ interface LinkFormModalProps {
 }
 
 const EFFECTS = [
-  { value: 'none',   label: '— Tidak ada efek' },
-  { value: 'glow',   label: '✨ Bersinar (Glow)' },
-  { value: 'shake',  label: '👋 Bergoyang (Shake)' },
-  { value: 'bounce', label: '🏀 Memantul (Bounce)' },
-  { value: 'float',  label: '🎈 Melayang (Float)' },
-  { value: 'neon',   label: '💡 Neon (Neon)' },
+  { value: 'none',   label: '— None' },
+  { value: 'glow',   label: '✨ Glow' },
+  { value: 'shake',  label: '👋 Shake' },
+  { value: 'bounce', label: '🏀 Bounce' },
+  { value: 'float',  label: '🎈 Float' },
+  { value: 'neon',   label: '💡 Neon' },
 ];
 
 const PRESET_COLORS = [
@@ -54,6 +54,7 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
   const [imageUrl, setImageUrl] = useState(link?.image_url || '');
   const [originalImageUrl] = useState(link?.image_url || '');
   const [effect, setEffect] = useState(link?.effect || 'none');
+  const [showPw, setShowPw] = useState(false);
 
   // Background color state
   const [bgMode, setBgMode] = useState<BgMode>(parseBgMode(link?.bg_color));
@@ -72,6 +73,8 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+
 
   // Close color picker on outside click
   useEffect(() => {
@@ -99,8 +102,12 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
       fd.append('file', file);
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       const data = await res.json();
-      if (data.url) setImageUrl(data.url);
-      else onToast('Upload gagal', 'error');
+      if (data.url) {
+        if (String(data.url).startsWith('/uploads/') && data.url !== originalImageUrl) {
+          setUploadedFiles(v => [...v, data.url]);
+        }
+        setImageUrl(data.url);
+      } else onToast('Upload gagal', 'error');
     } catch {
       onToast('Upload gagal', 'error');
     } finally {
@@ -129,15 +136,23 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
 
     setSaving(true);
     try {
-      if (isEdit && originalImageUrl && originalImageUrl !== imageUrl && originalImageUrl.startsWith('/uploads/')) {
+      if (isEdit && originalImageUrl.startsWith('/uploads/') && originalImageUrl !== imageUrl) {
         await deleteFile(originalImageUrl);
       }
+      // Hapus file-file yang sudah di-upload selama sesi ini
+      for (const file of uploadedFiles) {
+        if (file !== imageUrl) {
+          await deleteFile(file);
+        }
+      }
+
       const body: Record<string, unknown> = {
         label, url: finalUrl, image_url: imageUrl,
         effect, bg_color: getFinalBgColor(),
         visible, scheduler_enabled: schedulerEnabled,
         scheduler_start: schedulerStart || null,
         scheduler_end: schedulerEnd || null,
+        ...(folderId != null ? { folder_id: folderId } : {}),
       };
       if (isEdit) {
         body.id = link!.id;
@@ -153,13 +168,24 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
-      onToast(isEdit ? 'Link diperbarui' : 'Link ditambahkan', 'success');
+      onToast(isEdit ? 'Link updated' : 'Link added', 'success');
       onSave();
     } catch {
-      onToast('Gagal menyimpan', 'error');
+      onToast('Failed to save link', 'error');
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleCancel() {
+    setImageUrl(originalImageUrl);
+    // Hapus file baru yang sudah di-upload jika user cancel
+    for (const file of uploadedFiles) {
+      if (file !== originalImageUrl) {
+        await deleteFile(file);
+      }
+    }
+    onClose();
   }
 
   const fl: React.CSSProperties = {
@@ -194,8 +220,8 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* Label */}
           <div>
-            <label style={fl}>Nama yang Ditampilkan *</label>
-            <RichEditor value={label} onChange={setLabel} placeholder="Contoh: <b>Web</b> <i>Sekolah</i>" />
+            <label style={fl}>Display Name *</label>
+            <RichEditor value={label} onChange={setLabel} placeholder="Example: Web School" />
           </div>
 
           {/* URL */}
@@ -206,11 +232,11 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
 
           {/* Gambar */}
           <div>
-            <label style={fl}>Gambar / Ikon</label>
+            <label style={fl}>Image / Icon</label>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <input className="field" type="text" placeholder="URL gambar atau upload..." value={imageUrl} onChange={e => setImageUrl(e.target.value)} style={{ flex: 1 }} />
+              <input className="field" type="text" placeholder="Image URL or upload..." value={imageUrl} onChange={e => setImageUrl(e.target.value)} style={{ flex: 1 }} />
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                {uploading ? '...' : '📁 Upload'}
+                {uploading ? '...' : '📁'}
               </button>
               <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleUpload} />
             </div>
@@ -218,14 +244,14 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
               <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={imageUrl} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />
-                <button type="button" onClick={() => { deleteFile(imageUrl); setImageUrl(''); }} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem' }}>Hapus gambar</button>
+                <button type="button" onClick={() => { deleteFile(imageUrl); setImageUrl(''); }} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem' }}>Delete Image</button>
               </div>
             )}
           </div>
 
           {/* Warna Background */}
           <div>
-            <label style={fl}>Warna Background Card</label>
+            <label style={fl}>Card: Background Color</label>
 
             {/* Radio: None / Solid */}
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -310,7 +336,7 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
                 <p style={{ ...fl, marginBottom: '0.35rem' }}>Preview Card</p>
                 <div
                   style={{
-                    background: solidColor,
+                    ...previewStyle,
                     border: '1px solid var(--border)', borderRadius: 14,
                     padding: '0.875rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
                   }}
@@ -328,7 +354,7 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
 
           {/* Efek */}
           <div>
-            <label style={fl}>Efek Animasi Box</label>
+            <label style={fl}>Card: Animation Effect</label>
             <select className="field" value={effect} onChange={e => setEffect(e.target.value)}>
               {EFFECTS.map(ef => <option key={ef.value} value={ef.value}>{ef.label}</option>)}
             </select>
@@ -341,7 +367,7 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
                 style={{ width: 16, height: 16, accentColor: 'var(--accent)', opacity: schedulerEnabled ? 0.5 : 1 }}
               />
               <span style={{ fontSize: '0.875rem' }}>
-                <strong>Tampilkan</strong> <span style={{ color: 'var(--text2)' }}>(link aktif & terlihat di halaman)</span>
+                <strong>Show</strong> <span style={{ color: 'var(--text2)' }}>(link active & visible on the page)</span>
               </span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
@@ -351,17 +377,17 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
                 }}
                 style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
               <span style={{ fontSize: '0.875rem' }}>
-                <strong>Aktifkan Jadwal Tampil</strong> <span style={{ color: 'var(--text2)' }}>(otomatis show/hide berdasarkan waktu)</span>
+                <strong>Activate Scheduler</strong> <span style={{ color: 'var(--text2)' }}>(automatically show/hide based on time)</span>
               </span>
             </label>
             {schedulerEnabled && (
               <div style={{ paddingLeft: '1.6rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 180 }}>
-                  <label style={{ ...fl, marginBottom: '0.25rem' }}>Mulai Tampil</label>
+                  <label style={{ ...fl, marginBottom: '0.25rem' }}>Start</label>
                   <input type="datetime-local" className="field" value={schedulerStart} onChange={e => setSchedulerStart(e.target.value)} />
                 </div>
                 <div style={{ flex: 1, minWidth: 180 }}>
-                  <label style={{ ...fl, marginBottom: '0.25rem' }}>Berhenti Tampil</label>
+                  <label style={{ ...fl, marginBottom: '0.25rem' }}>End</label>
                   <input type="datetime-local" className="field" value={schedulerEnd} onChange={e => setSchedulerEnd(e.target.value)} />
                 </div>
               </div>
@@ -370,35 +396,57 @@ export default function LinkFormModal({ link, folderId, onClose, onSave, onToast
 
           {/* Password */}
           <div>
-            <label style={fl}>Password Link</label>
+            <label style={fl}>Password</label>
             {isEdit && link?.has_password && !clearPassword && (
               <div style={{ marginBottom: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 8, fontSize: '0.8rem', color: 'var(--warning)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>🔒 Password sudah diset</span>
-                <button type="button" onClick={() => setClearPassword(true)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem' }}>Hapus Password</button>
+                <span>🔒 Password already set</span>
+                <button type="button" onClick={() => { setClearPassword(true); setPassword(''); }} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem' }}>Delete Password</button>
               </div>
             )}
             {isEdit && clearPassword && (
               <div style={{ marginBottom: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, fontSize: '0.8rem', color: 'var(--danger)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Password akan dihapus</span>
-                <button type="button" onClick={() => setClearPassword(false)} style={{ background: 'none', border: 'none', color: 'var(--text2)', cursor: 'pointer', fontSize: '0.8rem' }}>Batal</button>
+                <span>Password will be deleted</span>
+                <button type="button" onClick={() => setClearPassword(false)} style={{ background: 'none', border: 'none', color: 'var(--text2)', cursor: 'pointer', fontSize: '0.8rem' }}>Cancel</button>
               </div>
             )}
-            <input
-              type="password" className="field"
-              placeholder={isEdit ? 'Isi untuk ganti password (kosongkan = tidak berubah)' : 'Kosongkan jika tanpa password'}
-              value={password} onChange={e => setPassword(e.target.value)} disabled={clearPassword}
-            />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input
+              type={showPw ? 'text' : 'password'}
+              className="field"
+              placeholder={isEdit ? 'Enter to change password (leave blank to keep current)' : 'Leave blank if no password is required'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              disabled={clearPassword}
+              />
+              <button
+              type="button"
+              onClick={() => setShowPw(v => !v)}
+              style={{
+                position: 'absolute',
+                right: '0.625rem',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text2)',
+                fontSize: '1rem',
+                padding: 0,
+                lineHeight: 1,
+              }}
+              >
+              {showPw ? '🙈' : '👁️'}
+              </button>
+            </div>
             <p style={{ margin: '0.3rem 0 0', fontSize: '0.75rem', color: 'var(--text2)' }}>
-              Jika diisi, pengunjung harus memasukkan password sebelum membuka link
+              If set, visitors will need to enter this password before accessing the link
             </p>
           </div>
         </div>
 
         {/* Footer */}
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
-          <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Batal</button>
+          <button className="btn btn-secondary" style={{ flex: 1 }} onClick={handleCancel}>Cancel</button>
           <button className="btn btn-primary" style={{ flex: 2 }} onClick={handleSave} disabled={saving}>
-            {saving ? 'Menyimpan...' : (isEdit ? '💾 Simpan Perubahan' : '✅ Tambah Link')}
+            {saving ? 'Saving...' : (isEdit ? '💾 Save Changes' : '✅ Add Link')}
           </button>
         </div>
       </div>

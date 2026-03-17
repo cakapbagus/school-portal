@@ -62,7 +62,7 @@ export function FolderCardDisplay({ folder, isAdmin, onEdit, onDelete, onPasswor
         )}
         {isAdmin && (
           <div style={{ fontSize: '0.72rem', color: 'var(--text2)', marginTop: 2, display: 'flex', gap: '0.5rem' }}>
-            {!folder.visible && <span style={{ color: 'var(--danger)' }}>Tersembunyi</span>}
+            {!folder.visible && <span style={{ color: 'var(--danger)' }}>Hidden</span>}
             {hasPassword && <span style={{ color: 'var(--warning)' }}>🔒 Password</span>}
           </div>
         )}
@@ -82,7 +82,7 @@ export function FolderCardDisplay({ folder, isAdmin, onEdit, onDelete, onPasswor
         )}
         {isAdmin && (
           <div style={{ display: 'flex', gap: '0.35rem' }}>
-            <button onClick={e => { e.stopPropagation(); window.location.href = `/folder/${folder.id}`; }} className="btn btn-secondary btn-sm" style={{ padding: '0.3rem 0.6rem' }} title="Buka folder">📂</button>
+            <button onClick={e => { e.stopPropagation(); window.location.href = `/folder/${folder.id}`; }} className="btn btn-secondary btn-sm" style={{ padding: '0.3rem 0.6rem' }} title="Open folder">📂</button>
             <button onClick={e => { e.stopPropagation(); onEdit(folder); }} className="btn btn-secondary btn-sm" style={{ padding: '0.3rem 0.6rem' }}>✏️</button>
             <button onClick={e => { e.stopPropagation(); onDelete(folder.id, folder.name); }} className="btn btn-danger btn-sm" style={{ padding: '0.3rem 0.6rem' }}>🗑️</button>
           </div>
@@ -100,7 +100,7 @@ export function SortableFolderCard(props: FolderCardProps) {
         {props.isAdmin && (
           <div {...attributes} {...listeners}
             style={{ cursor: 'grab', color: 'var(--text2)', padding: '0.5rem 0.25rem', fontSize: '1rem', touchAction: 'none', userSelect: 'none' }}
-            title="Seret untuk ubah posisi">⠿</div>
+            title="Drag to change position">⠿</div>
         )}
         <div style={{ flex: 1 }}>
           <FolderCardDisplay {...props} />

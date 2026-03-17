@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Portal Sekolah",
-  description: "Link & Informasi Sekolah",
+  title: "School Portal",
+  description: "School Link & Information Portal",
 };
 
 // Script dijalankan sebelum render untuk hindari flash of wrong theme

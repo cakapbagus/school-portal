@@ -16,6 +16,7 @@ export interface LinkItem {
   scheduler_start?: string;
   scheduler_end?: string;
   bg_color?: string;
+  folder_id?: number | null;
 }
 
 interface LinkCardProps {
@@ -24,6 +25,7 @@ interface LinkCardProps {
   onEdit: (link: LinkItem) => void;
   onDelete: (id: number, label: string) => void;
   onPasswordPrompt: (link: LinkItem) => void;
+  onFolderPick?: (link: LinkItem) => void;
 }
 
 function isSchedulerActive(link: LinkItem): boolean {
@@ -60,7 +62,7 @@ function SeparatorCard({ link, isAdmin, onEdit, onDelete }: {
   );
 }
 
-export function LinkCardDisplay({ link, isAdmin, onEdit, onDelete, onPasswordPrompt }: LinkCardProps) {
+export function LinkCardDisplay({ link, isAdmin, onEdit, onDelete, onPasswordPrompt, onFolderPick }: LinkCardProps) {
   if (link.type === 'separator') {
     return <SeparatorCard link={link} isAdmin={isAdmin} onEdit={onEdit} onDelete={onDelete} />;
   }
@@ -101,9 +103,9 @@ export function LinkCardDisplay({ link, isAdmin, onEdit, onDelete, onPasswordPro
           <div style={{ fontSize: '0.72rem', color: 'var(--text2)', marginTop: 2, display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span style={{ color: 'var(--accent3)', opacity: 0.7 }}>{link.url.length > 40 ? link.url.slice(0, 40) + '…' : link.url}</span>
             {hasPassword && <span style={{ color: 'var(--warning)' }}>🔒</span>}
-            {!link.visible && <span style={{ color: 'var(--danger)' }}>Tersembunyi</span>}
-            {!!link.scheduler_enabled && !schedulerOk && <span style={{ color: 'var(--warning)' }}>Jadwal: nonaktif</span>}
-            {!!link.scheduler_enabled && schedulerOk && <span style={{ color: 'var(--success)' }}>Jadwal: aktif</span>}
+            {!link.visible && <span style={{ color: 'var(--danger)' }}>Hidden</span>}
+            {!!link.scheduler_enabled && !schedulerOk && <span style={{ color: 'var(--warning)' }}>Scheduler: inactive</span>}
+            {!!link.scheduler_enabled && schedulerOk && <span style={{ color: 'var(--success)' }}>Scheduler: active</span>}
           </div>
         )}
       </div>
@@ -119,6 +121,7 @@ export function LinkCardDisplay({ link, isAdmin, onEdit, onDelete, onPasswordPro
         {/* Admin controls */}
         {isAdmin && (
           <div style={{ display: 'flex', gap: '0.35rem' }}>
+            {onFolderPick && <button onClick={e => { e.stopPropagation(); onFolderPick(link); }} className="btn btn-secondary btn-sm" style={{ padding: '0.3rem 0.6rem' }}>↪</button>}
             <button onClick={e => { e.stopPropagation(); onEdit(link); }} className="btn btn-secondary btn-sm" style={{ padding: '0.3rem 0.6rem' }}>✏️</button>
             <button onClick={e => { e.stopPropagation(); onDelete(link.id, link.label); }} className="btn btn-danger btn-sm" style={{ padding: '0.3rem 0.6rem' }}>🗑️</button>
           </div>
@@ -136,7 +139,7 @@ export function SortableLinkCard(props: LinkCardProps) {
         {props.isAdmin && (
           <div {...attributes} {...listeners}
             style={{ cursor: 'grab', color: 'var(--text2)', padding: '0.5rem 0.25rem', fontSize: '1rem', touchAction: 'none', userSelect: 'none' }}
-            title="Seret untuk ubah posisi">⠿</div>
+            title="Drag to change position">⠿</div>
         )}
         <div style={{ flex: 1 }}>
           <LinkCardDisplay {...props} />

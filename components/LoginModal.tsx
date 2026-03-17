@@ -27,10 +27,10 @@ export default function LoginModal({ onClose, onSuccess }: LoginModalProps) {
         body: JSON.stringify({ password: pw }),
       });
       const data = await res.json();
-      if (!res.ok) setError(data.error || 'Login gagal');
+      if (!res.ok) setError(data.error || 'Failed to login');
       else onSuccess();
     } catch {
-      setError('Terjadi kesalahan');
+      setError('An error occurred');
     } finally {
       setLoading(false);
     }
@@ -60,9 +60,9 @@ export default function LoginModal({ onClose, onSuccess }: LoginModalProps) {
           />
           {error && <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--danger)', textAlign: 'center' }}>{error}</p>}
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Batal</button>
+            <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={loading}>
-              {loading ? '...' : 'Masuk'}
+              {loading ? '...' : 'Login'}
             </button>
           </div>
         </form>

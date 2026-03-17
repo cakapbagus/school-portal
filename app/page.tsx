@@ -14,6 +14,7 @@ import LinkFormModal, { LinkData } from '@/components/LinkFormModal';
 import SeparatorFormModal from '@/components/SeparatorFormModal';
 import FolderFormModal, { FolderData } from '@/components/FolderFormModal';
 import FolderPasswordModal from '@/components/FolderPasswordModal';
+import FolderPickerModal from '@/components/FolderPickerModal';
 import SettingsModal from '@/components/SettingsModal';
 import { SortableLinkCard, LinkItem } from '@/components/LinkCard';
 import { SortableFolderCard, FolderItem } from '@/components/FolderCard';
@@ -48,6 +49,7 @@ export default function Home() {
   const [deletingItem, setDeletingItem] = useState<{id:number;label:string;kind:'link'|'folder'}|null>(null);
   const [passwordLink, setPasswordLink] = useState<LinkItem|null>(null);
   const [passwordFolder, setPasswordFolder] = useState<FolderItem|null>(null);
+  const [folderPickLink, setFolderPickLink] = useState<LinkItem|null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [tc, setTc] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -136,6 +138,26 @@ export default function Home() {
     } catch { showToast('Gagal simpan posisi','error'); fetchData(); }
   }
 
+  async function handleMoveToFolder(folderId: number | null) {
+    if (!folderPickLink) return;
+    try {
+      await fetch('/api/links', { method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ id: folderPickLink.id, move_to_folder: folderId }) });
+      showToast('Link dipindahkan', 'success');
+      setFolderPickLink(null); fetchData();
+    } catch { showToast('Gagal memindahkan', 'error'); }
+  }
+
+  async function handleCopyToFolder(folderId: number | null) {
+    if (!folderPickLink) return;
+    try {
+      await fetch('/api/links', { method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ id: folderPickLink.id, copy_to_folder: folderId }) });
+      showToast('Link disalin', 'success');
+      setFolderPickLink(null); fetchData();
+    } catch { showToast('Gagal menyalin', 'error'); }
+  }
+
   async function handleDeleteConfirm() {
     if (!deletingItem) return;
     try {
@@ -206,8 +228,8 @@ export default function Home() {
         <div style={{display:'flex',gap:'0.5rem',pointerEvents:'all',alignItems:'center'}}>
           {isAdmin ? (
             <>
-              <button className="btn btn-secondary btn-sm" onClick={()=>setShowSettings(true)}>⚙️ Setelan</button>
-              <button className="btn btn-danger btn-sm" onClick={handleLogout}>Keluar</button>
+              <button className="btn btn-secondary btn-sm" onClick={()=>setShowSettings(true)}>⚙️ Setting</button>
+              <button className="btn btn-danger btn-sm" onClick={handleLogout}>Logout</button>
             </>
           ) : (
             <button onClick={()=>setShowLogin(true)} style={{
@@ -250,20 +272,20 @@ export default function Home() {
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'0.6rem',marginTop:'0.75rem'}}>
               <div style={{display:'inline-flex',alignItems:'center',gap:'0.4rem',background:'rgba(108,99,255,0.15)',border:'1px solid rgba(108,99,255,0.3)',borderRadius:999,padding:'0.3rem 0.8rem',fontSize:'0.75rem',color:'var(--accent2)'}}>
                 <span style={{width:6,height:6,borderRadius:'50%',background:'var(--success)',display:'inline-block'}}/>
-                Mode Admin — Seret ⠿ untuk atur posisi
+                Admin Mode — Drag and drop ⠿ for reordering
               </div>
               {/* Dropdown Tambah Item */}
               <div ref={dropdownRef} style={{position:'relative'}}>
                 <button className="btn btn-primary btn-sm" onClick={()=>setShowDropdown(v=>!v)} style={{display:'flex',alignItems:'center',gap:'0.4rem',padding:'0.45rem 1rem',fontSize:'0.82rem'}}>
-                  ✚ Tambah Item
+                  ✚ Add Item
                   <span style={{fontSize:'0.55rem',display:'inline-block',transition:'transform 0.2s',transform:showDropdown?'rotate(180deg)':'none'}}>▼</span>
                 </button>
                 {showDropdown && (
                   <div style={{position:'absolute',top:'calc(100% + 6px)',left:'50%',transform:'translateX(-50%)',background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,minWidth:230,boxShadow:'0 12px 32px rgba(0,0,0,0.5)',overflow:'hidden',animation:'dropdownIn 0.15s ease',zIndex:100}}>
                     {[
-                      {icon:'🔗',label:'Link / URL',desc:'Tambah tautan ke halaman/website',onClick:()=>{setShowDropdown(false);setShowAddLink(true);}},
-                      {icon:'📁',label:'Folder',desc:'Kelompokkan link dalam folder',onClick:()=>{setShowDropdown(false);setShowAddFolder(true);}},
-                      {icon:'➖',label:'Separator',desc:'Garis pemisah antar link',onClick:()=>{setShowDropdown(false);setShowAddSeparator(true);},divider:true},
+                      {icon:'🔗',label:'Link / URL',desc:'Add link',onClick:()=>{setShowDropdown(false);setShowAddLink(true);}},
+                      {icon:'📁',label:'Folder',desc:'Group links in a folder',onClick:()=>{setShowDropdown(false);setShowAddFolder(true);}},
+                      {icon:'➖',label:'Separator',desc:'Breakline',onClick:()=>{setShowDropdown(false);setShowAddSeparator(true);},divider:true},
                     ].map((item,i)=>(
                       <div key={i}>
                         {item.divider&&<div style={{height:1,background:'var(--border)'}}/>}
@@ -288,7 +310,7 @@ export default function Home() {
         {/* Search bar */}
         <div style={{position:'relative',marginBottom:'1rem'}}>
           <span style={{position:'absolute',left:'0.875rem',top:'50%',transform:'translateY(-50%)',color:'var(--text2)',fontSize:'0.9rem',pointerEvents:'none'}}>🔍</span>
-          <input className="field" type="text" placeholder="Cari link atau folder..."
+          <input className="field" type="text" placeholder="Search links or folders..."
             value={search} onChange={e=>setSearch(e.target.value)}
             style={{paddingLeft:'2.25rem',borderRadius:999,fontSize:'0.875rem'}}
           />
@@ -301,7 +323,7 @@ export default function Home() {
         {loading ? (
           <div style={{textAlign:'center',padding:'3rem',color:'var(--text2)'}}>
             <div style={{fontSize:'1.5rem',marginBottom:'0.5rem',animation:'spin 1s linear infinite',display:'inline-block'}}>⟳</div>
-            <p style={{margin:0}}>Memuat...</p>
+            <p style={{margin:0}}>Loading...</p>
           </div>
         ) : (
           <div style={{display:'flex',flexDirection:'column',gap:'0.75rem'}}>
@@ -343,7 +365,7 @@ export default function Home() {
                             onEdit={handleEditFolder} onDelete={(id,name)=>setDeletingItem({id,label:name,kind:'folder'})} onPasswordPrompt={setPasswordFolder}/>
                         ) : (
                           <SortableLinkCard key={item.id} link={item.data} isAdmin={true}
-                            onEdit={handleEditItem} onDelete={(id,label)=>setDeletingItem({id,label,kind:'link'})} onPasswordPrompt={setPasswordLink}/>
+                            onEdit={handleEditItem} onDelete={(id,label)=>setDeletingItem({id,label,kind:'link'})} onPasswordPrompt={setPasswordLink} onFolderPick={setFolderPickLink}/>
                         )
                       )}
                     </SortableContext>
@@ -416,7 +438,7 @@ export default function Home() {
               {deletingItem.kind==='folder'&&<p style={{margin:'0 0 0.75rem',fontSize:'0.825rem',color:'var(--warning)',background:'rgba(251,191,36,0.1)',border:'1px solid rgba(251,191,36,0.3)',borderRadius:8,padding:'0.5rem'}}>⚠️ Semua link di dalam folder ini juga akan dihapus permanen.</p>}
               {deletingItem.kind==='link'&&<p style={{margin:'0 0 0.75rem',fontSize:'0.825rem',color:'var(--text2)'}}>Tindakan ini tidak bisa dibatalkan.</p>}
               <div style={{display:'flex',gap:'0.75rem'}}>
-                <button className="btn btn-secondary" style={{flex:1}} onClick={()=>setDeletingItem(null)}>Batal</button>
+                <button className="btn btn-secondary" style={{flex:1}} onClick={()=>setDeletingItem(null)}>Cancel</button>
                 <button className="btn btn-danger" style={{flex:1}} onClick={handleDeleteConfirm}>Ya, Hapus</button>
               </div>
             </div>
@@ -427,6 +449,15 @@ export default function Home() {
       {passwordLink&&<PasswordModal linkId={passwordLink.id} linkLabel={passwordLink.label.replace(/<[^>]+>/g,'')} onClose={()=>setPasswordLink(null)} onSuccess={url=>{setPasswordLink(null);window.open(url,'_blank','noopener,noreferrer');}}/>}
       {passwordFolder&&<FolderPasswordModal folderId={passwordFolder.id} folderName={passwordFolder.name} folderIcon={passwordFolder.icon} onClose={()=>setPasswordFolder(null)} onSuccess={()=>{setPasswordFolder(null);window.location.href=`/folder/${passwordFolder.id}`;}}/>}
       {toasts.map(t=><Toast key={t.id} message={t.msg} type={t.type} onClose={()=>setToasts(p=>p.filter(x=>x.id!==t.id))}/>)}
+      {folderPickLink && (
+        <FolderPickerModal
+          linkLabel={folderPickLink.label}
+          currentFolderId={folderPickLink.folder_id ?? null}
+          onClose={() => setFolderPickLink(null)}
+          onMove={handleMoveToFolder}
+          onCopy={handleCopyToFolder}
+        />
+      )}
       <ServerClock/>
       <ThemeSelector/>
       <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}} @keyframes dropdownIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>
