@@ -318,13 +318,13 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                 {displayLinks.length === 0 && !isAdmin && (
                   <div style={{ textAlign:'center', padding:'3rem 1rem', color:'var(--text2)' }}>
                     <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>📭</div>
-                    <p style={{ margin:0 }}>Belum ada link di folder ini</p>
+                    <p style={{ margin:0 }}>No links available in this folder</p>
                   </div>
                 )}
                 {links.length === 0 && isAdmin && (
                   <div style={{ textAlign:'center', padding:'3rem 1rem', border:'2px dashed var(--border)', borderRadius:14, color:'var(--text2)' }}>
                     <div style={{ fontSize:'3rem', marginBottom:'0.75rem' }}>🔗</div>
-                    <p style={{ margin:'0 0 1rem' }}>Gunakan <strong>✚ Tambah Item</strong> di atas!</p>
+                    <p style={{ margin:'0 0 1rem' }}>Use the <strong>✚ Add Item</strong> dropdown to get started!</p>
                   </div>
                 )}
               </>
