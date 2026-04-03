@@ -1,6 +1,6 @@
 {
   "name": "school-portal",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "School portal like lynk.id with password protected links and folders.",
   "private": true,
   "scripts": {
@@ -15,6 +15,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@libsql/client": "^0.17.0",
     "@types/bcryptjs": "^2.4.6",
+    "@vercel/blob": "^0.23.4",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.1",
     "next": "16.1.6",
